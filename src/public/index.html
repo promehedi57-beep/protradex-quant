@@ -1,150 +1,269 @@
 <!DOCTYPE html>
-<html lang="bn">
+<html lang="en" class="dark">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ProTradeX Quant — Dashboard</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Quant Terminal — Crypto Trading Bot Dashboard</title>
+<meta name="description" content="Dark-themed quant trading terminal with live signals, watchlist and market scanner." />
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-:root{--bg:#070b14;--card:rgba(255,255,255,.05);--brd:rgba(255,255,255,.1);--gold:#ffd166;--cyan:#00d4ff;--up:#00e676;--down:#ff5252;--txt:#eef2ff;--mut:#8b93a7}
-body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(0,212,255,.13),transparent 55%),radial-gradient(900px 500px at 0% 110%,rgba(255,209,102,.08),transparent 55%),var(--bg);color:var(--txt);min-height:100vh;padding:22px 18px 60px}
-.wrap{max-width:1180px;margin:0 auto}
-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:20px}
-h1{font-size:22px;background:linear-gradient(135deg,#ffd166,#00d4ff);-webkit-background-clip:text;background-clip:text;color:transparent}
-.chip{font-size:12px;padding:5px 12px;border-radius:99px;border:1px solid var(--brd);background:var(--card)}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:18px}
-.card{background:var(--card);border:1px solid var(--brd);border-radius:16px;padding:16px;backdrop-filter:blur(10px)}
-.card .l{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
-.card .v{font-size:24px;font-weight:800}
-.controls{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px}
-.ctl{flex:1;min-width:250px;background:var(--card);border:1px solid var(--brd);border-radius:16px;padding:16px}
-.ctl h3{font-size:14px;margin-bottom:12px;color:var(--cyan)}
-.btn{border:none;cursor:pointer;font-family:inherit;font-weight:700;padding:11px 18px;border-radius:10px;font-size:14px;transition:.2s;min-height:42px}
-.btn:hover{transform:translateY(-2px)}
-.b-gold{background:linear-gradient(135deg,#ffd166,#ff9f1c);color:#1a1200}
-.b-cy{background:linear-gradient(135deg,#00d4ff,#0091ff);color:#00121c}
-.b-ghost{background:rgba(255,255,255,.07);color:var(--txt);border:1px solid var(--brd)}
-.mini{font-size:12px;padding:8px 14px}
-.inp{background:rgba(255,255,255,.05);border:1px solid var(--brd);border-radius:10px;padding:10px 12px;color:var(--txt);font-family:inherit;font-size:14px;width:90px;text-align:center;outline:none}
-.dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:7px;vertical-align:middle}
-.on{background:var(--up);box-shadow:0 0 10px rgba(0,230,118,.6)}
-.off{background:var(--down);box-shadow:0 0 10px rgba(255,82,82,.6)}
-.tbl{width:100%;border-collapse:collapse;font-size:13px;background:var(--card);border:1px solid var(--brd);border-radius:16px;overflow:hidden}
-.tbl th{text-align:left;padding:12px 14px;color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--brd)}
-.tbl td{padding:11px 14px;border-bottom:1px solid rgba(255,255,255,.05);font-variant-numeric:tabular-nums}
-.tbl tr:hover td{background:rgba(255,255,255,.03)}
-.bar{height:7px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;min-width:70px}
-.bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#ff5252,#ffd166,#00e676)}
-.badge{padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700}
-.b-call{background:rgba(0,230,118,.15);color:var(--up)}
-.b-put{background:rgba(255,82,82,.15);color:var(--down)}
-.up{color:var(--up)}.down{color:var(--down)}.mut{color:var(--mut);font-size:12px}
-@media(max-width:640px){.tbl{font-size:11px}.tbl th,.tbl td{padding:8px 8px}.v{font-size:20px}}
+  :root { color-scheme: dark; }
+  body { font-family: Inter, system-ui, sans-serif; background:#020617; }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background:#1e293b; border-radius: 99px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  .glow-up { box-shadow: inset 0 0 0 1px rgba(16,185,129,.35); }
+  .glow-dn { box-shadow: inset 0 0 0 1px rgba(244,63,94,.35); }
+  .flash-up { animation: fu .5s ease-out; }
+  .flash-dn { animation: fd .5s ease-out; }
+  @keyframes fu { from { background:rgba(16,185,129,.22) } to { background:transparent } }
+  @keyframes fd { from { background:rgba(244,63,94,.22) } to { background:transparent } }
+  .pulse-dot { animation: pd 1.6s ease-in-out infinite; }
+  @keyframes pd { 0%,100%{opacity:1} 50%{opacity:.25} }
+  .grid-bg { background-image: linear-gradient(rgba(148,163,184,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,.05) 1px, transparent 1px); background-size: 42px 42px; }
 </style>
 </head>
-<body>
-<div class="wrap">
-  <header>
-    <h1>📊 ProTradeX Quant Engine — Control Dashboard</h1>
-    <div class="chip" id="chipUptime">⏱ —</div>
-  </header>
+<body class="min-h-screen text-slate-200 grid-bg">
 
-  <div class="grid">
-    <div class="card"><div class="l">Binance WS</div><div class="v" id="wWS">—</div></div>
-    <div class="card"><div class="l">Scanning Pairs</div><div class="v" id="wPairs">0</div></div>
-    <div class="card"><div class="l">Total Signals</div><div class="v" style="color:var(--gold)" id="wSignals">0</div></div>
-    <div class="card"><div class="l">Execution Mode</div><div class="v" id="wMode">—</div></div>
-    <div class="card"><div class="l">Min Confidence</div><div class="v" style="color:var(--cyan)" id="wConf">—</div></div>
-    <div class="card"><div class="l">p95 Latency</div><div class="v" id="wLat">—</div></div>
-  </div>
-
-  <div class="controls">
-    <div class="ctl">
-      <h3>⚡ Execution Mode</h3>
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button class="btn b-gold" onclick="setExec(true)">🟢 REAL ON</button>
-        <button class="btn b-ghost" onclick="setExec(false)">🟡 DRY-RUN</button>
+<!-- HEADER -->
+<header class="sticky top-0 z-30 border-b border-slate-800/80 bg-slate-950/85 backdrop-blur">
+  <div class="mx-auto max-w-[1600px] px-4 py-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 sm:flex sm:justify-between">
+    <div class="flex min-w-0 items-center gap-3">
+      <div class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/30 font-black">Q</div>
+      <div class="min-w-0">
+        <h1 class="truncate text-base font-extrabold tracking-tight text-slate-50 sm:text-lg">QUANT TERMINAL</h1>
+        <p class="truncate text-[11px] text-slate-500 mono">algorithmic signal engine v2.4</p>
       </div>
-      <p class="mut" id="execNote" style="margin-top:10px"></p>
     </div>
-    <div class="ctl">
-      <h3>🎯 Min Confidence Threshold</h3>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <button class="btn b-ghost mini" onclick="adjConf(-5)">−5%</button>
-        <input class="inp" id="confInp" type="number" min="0" max="97" onchange="setConf(this.value)">
-        <button class="btn b-ghost mini" onclick="adjConf(5)">+5%</button>
-        <button class="btn b-cy mini" onclick="setConf(document.getElementById('confInp').value)">সেভ</button>
+    <div class="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+      <div class="rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-1.5">
+        <div class="text-[10px] uppercase tracking-wider text-slate-500">Uptime</div>
+        <div id="uptime" class="mono text-sm font-semibold text-slate-100">--:--:--</div>
       </div>
-      <p class="mut" style="margin-top:10px">রিস্টার্ট ছাড়াই instant আপডেট — সব রুল ইঞ্জিনে সাথে সাথে প্রযোজ্য</p>
+      <div class="rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-1.5">
+        <div class="text-[10px] uppercase tracking-wider text-slate-500">Signals</div>
+        <div id="signalCount" class="mono text-sm font-semibold text-cyan-400">0</div>
+      </div>
+      <div class="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2">
+        <span id="binDot" class="pulse-dot h-2 w-2 rounded-full bg-slate-600"></span>
+        <span class="mono text-xs text-slate-400">BINANCE</span>
+        <span class="h-4 w-px bg-slate-800"></span>
+        <span id="oanDot" class="pulse-dot h-2 w-2 rounded-full bg-slate-600"></span>
+        <span class="mono text-xs text-slate-400">OANDA</span>
+      </div>
     </div>
   </div>
+</header>
 
-  <h2 style="font-size:17px;margin-bottom:12px">📈 Live Market Table <span class="mut">(টপ ২০ — প্রতি ২ সেকেন্ডে অটো-রিফ্রেশ)</span></h2>
-  <table class="tbl">
-    <thead><tr><th>#</th><th>Symbol</th><th>Price</th><th>RSI(14)</th><th>ADX(14)</th><th>Z-Score(20)</th><th>Confidence</th><th>Signal</th></tr></thead>
-    <tbody id="rows"><tr><td colspan="8" class="mut" style="text-align:center;padding:22px">ডেটা লোড হচ্ছে…</td></tr></tbody>
-  </table>
-</div>
+<main class="mx-auto max-w-[1600px] px-4 py-6 space-y-6">
+
+  <!-- CONTROL PANEL -->
+  <section class="rounded-2xl border border-slate-800 bg-slate-900/50 p-4 sm:p-5">
+    <div class="mb-4 flex items-center gap-2">
+      <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+      <h2 class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Global Controls</h2>
+    </div>
+    <div class="grid gap-4 lg:grid-cols-3">
+      <!-- exec toggle -->
+      <div class="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
+        <div class="text-[11px] uppercase tracking-wider text-slate-500">Execution Mode</div>
+        <button id="execBtn" class="mt-3 w-full rounded-lg px-4 py-3 text-sm font-bold transition">LOADING…</button>
+        <p id="execHint" class="mt-2 text-[11px] text-slate-500">Toggle between paper simulation and live order routing.</p>
+      </div>
+      <!-- threshold -->
+      <div class="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
+        <div class="text-[11px] uppercase tracking-wider text-slate-500">Confidence Threshold (%)</div>
+        <div class="mt-3 flex gap-2">
+          <input id="thrInput" type="number" min="0" max="100" step="1" value="75"
+            class="mono w-full rounded-lg border border-slate-800 bg-slate-900 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-cyan-500/60 focus:ring-2 focus:ring-cyan-500/20" />
+          <button id="thrSave" class="shrink-0 rounded-lg bg-cyan-500/15 px-4 text-sm font-semibold text-cyan-300 ring-1 ring-cyan-500/30 transition hover:bg-cyan-500/25">Save</button>
+        </div>
+        <p class="mt-2 text-[11px] text-slate-500">Signals below this score are suppressed.</p>
+      </div>
+      <!-- search -->
+      <div class="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
+        <div class="text-[11px] uppercase tracking-wider text-slate-500">Search &amp; Add Pair</div>
+        <div class="mt-3 flex gap-2">
+          <input id="searchInput" placeholder="BTCUSDT…" autocomplete="off"
+            class="mono w-full rounded-lg border border-slate-800 bg-slate-900 px-3 py-2.5 text-sm uppercase text-slate-100 placeholder:text-slate-600 outline-none focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/20" />
+          <button id="addBtn" class="shrink-0 rounded-lg bg-emerald-500/15 px-4 text-sm font-semibold text-emerald-300 ring-1 ring-emerald-500/30 transition hover:bg-emerald-500/25">Add</button>
+        </div>
+        <p class="mt-2 text-[11px] text-slate-500">Also filters the market table below.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- WATCHLIST -->
+  <section>
+    <div class="mb-3 flex items-center justify-between">
+      <h2 class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Watchlist</h2>
+      <span id="wlCount" class="mono text-xs text-slate-500">0 pairs</span>
+    </div>
+    <div id="watchGrid" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"></div>
+    <div id="wlEmpty" class="rounded-2xl border border-dashed border-slate-800 py-12 text-center text-sm text-slate-600">
+      No pairs tracked — add one above or from the market table.
+    </div>
+  </section>
+
+  <!-- MARKET TABLE -->
+  <section class="rounded-2xl border border-slate-800 bg-slate-900/50">
+    <div class="flex items-center justify-between border-b border-slate-800 px-4 py-3">
+      <h2 class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Market Scanner</h2>
+      <span id="mktCount" class="mono text-xs text-slate-500">0</span>
+    </div>
+    <div class="max-h-[520px] overflow-auto">
+      <table class="w-full min-w-[720px] text-sm">
+        <thead class="sticky top-0 z-10 bg-slate-950/95 text-[11px] uppercase tracking-wider text-slate-500 backdrop-blur">
+          <tr>
+            <th class="px-4 py-3 text-left font-medium">Symbol</th>
+            <th class="px-4 py-3 text-right font-medium">Price</th>
+            <th class="px-4 py-3 text-right font-medium">24h</th>
+            <th class="px-4 py-3 text-right font-medium">RSI</th>
+            <th class="px-4 py-3 text-right font-medium">Z-Score</th>
+            <th class="px-4 py-3 text-center font-medium">Signal</th>
+            <th class="px-4 py-3 text-right font-medium">Conf.</th>
+            <th class="px-4 py-3 text-right font-medium"></th>
+          </tr>
+        </thead>
+        <tbody id="mktBody" class="divide-y divide-slate-800/70"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
 
 <script>
-const $ = s => document.querySelector(s);
-const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const num = (v, d) => v == null || !Number.isFinite(Number(v)) ? '—' : Number(v).toLocaleString('en-US', { maximumFractionDigits: d == null ? 4 : d });
+const LS_WATCH = 'qt.watchlist', LS_THR = 'qt.threshold', LS_EXEC = 'qt.realExec';
+let watchlist = JSON.parse(localStorage.getItem(LS_WATCH) || '[]');
+let threshold = Number(localStorage.getItem(LS_THR) ?? 75);
+let realExec = localStorage.getItem(LS_EXEC) === 'true';
+let pairs = [], prevPrice = {}, filter = '';
 
-async function api(path, method = 'GET', body) {
-  const r = await fetch(path, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  return r.json();
+const $ = id => document.getElementById(id);
+const fmt = n => n >= 1000 ? n.toLocaleString('en-US',{maximumFractionDigits:2}) : n.toFixed(n < 1 ? 5 : 3);
+const hhmmss = s => [Math.floor(s/3600), Math.floor(s/60)%60, Math.floor(s)%60].map(v=>String(v).padStart(2,'0')).join(':');
+const save = () => localStorage.setItem(LS_WATCH, JSON.stringify(watchlist));
+
+function renderExec(){
+  const b = $('execBtn');
+  b.textContent = realExec ? '● REAL EXECUTION ARMED' : '○ SIMULATION MODE';
+  b.className = 'mt-3 w-full rounded-lg px-4 py-3 text-sm font-bold transition ring-1 ' + (realExec
+    ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/40 hover:bg-emerald-500/25'
+    : 'bg-amber-500/15 text-amber-300 ring-amber-500/40 hover:bg-amber-500/25');
+  $('execHint').textContent = realExec ? 'Orders are routed to the live exchange.' : 'Paper trading — no capital at risk.';
 }
+$('execBtn').onclick = () => { realExec = !realExec; localStorage.setItem(LS_EXEC, realExec); renderExec(); };
+$('thrInput').value = threshold;
+$('thrSave').onclick = () => {
+  threshold = Math.min(100, Math.max(0, Number($('thrInput').value) || 0));
+  $('thrInput').value = threshold; localStorage.setItem(LS_THR, threshold);
+  const b = $('thrSave'); b.textContent = 'Saved'; setTimeout(()=>b.textContent='Save', 1200);
+  render();
+};
+$('searchInput').addEventListener('input', e => { filter = e.target.value.trim().toUpperCase(); renderMarket(); });
+$('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') addPair($('searchInput').value); });
+$('addBtn').onclick = () => addPair($('searchInput').value);
 
-function renderStatus(d) {
-  $('#chipUptime').textContent = '⏱ Uptime: ' + d.uptimeHuman;
-  $('#wWS').innerHTML = '<span class="dot ' + (d.wsConnected ? 'on' : 'off') + '"></span>' + (d.wsConnected ? 'Connected' : 'Disconnected');
-  $('#wPairs').textContent = d.pairs;
-  $('#wSignals').textContent = d.signals;
-  $('#wConf').textContent = d.minConfidence + '%';
-  $('#wLat').textContent = d.latencyP95Ms + 'ms';
-  const real = d.executionEnabled;
-  $('#wMode').innerHTML = '<span class="dot ' + (real ? 'on' : 'off') + '"></span>' + (real ? '🟢 REAL' : '🟡 DRY-RUN');
-  $('#wMode').style.color = real ? 'var(--up)' : 'var(--gold)';
-  $('#execNote').textContent = 'Last candle: ' + (d.lastCandleAgo == null ? '—' : d.lastCandleAgo + 's আগে') + ' · Candles: ' + d.candles;
-  $('#confInp').value = d.minConfidence;
+function addPair(sym){
+  sym = (sym||'').trim().toUpperCase();
+  if (!sym || watchlist.includes(sym)) return;
+  watchlist.push(sym); save(); render();
 }
+function removePair(sym){ watchlist = watchlist.filter(s => s !== sym); save(); render(); }
 
-function renderPairs(list) {
-  const tb = $('#rows');
-  if (!list.length) { tb.innerHTML = '<tr><td colspan="8" class="mut" style="text-align:center;padding:22px">ওয়ার্ম-আপ চলছে… (সিগনাল তৈরি হতে ~২৫ মিনিট)</td></tr>'; return; }
-  tb.innerHTML = list.map((p, i) => {
-    const conf = p.confidence || 0;
-    const dir = p.direction === 'CALL' ? '<span class="badge b-call">🟢 CALL</span>' : p.direction === 'PUT' ? '<span class="badge b-put">🔴 PUT</span>' : '<span class="mut">—</span>';
-    return '<tr>' +
-      '<td>' + (i + 1) + '</td>' +
-      '<td><b>' + esc(p.symbol) + '</b></td>' +
-      '<td>' + num(p.price, p.price >= 1000 ? 2 : 4) + '</td>' +
-      '<td>' + (p.rsi == null ? '—' : p.rsi.toFixed(1)) + '</td>' +
-      '<td>' + (p.adx == null ? '—' : p.adx.toFixed(1)) + '</td>' +
-      '<td>' + (p.zscore == null ? '—' : '<span class="' + (p.zscore < -1 ? 'up' : p.zscore > 1 ? 'down' : '') + '">' + p.zscore.toFixed(2) + '</span>') + '</td>' +
-      '<td><div style="display:flex;align-items:center;gap:8px"><div class="bar"><i style="width:' + conf + '%"></i></div><b>' + conf + '%</b></div></td>' +
-      '<td>' + dir + '</td></tr>';
+function sigClasses(d){
+  return d === 'CALL' ? 'text-emerald-400' : d === 'PUT' ? 'text-rose-400' : 'text-slate-500';
+}
+function findPair(sym){ return pairs.find(p => p.symbol === sym); }
+
+function renderWatchlist(){
+  const g = $('watchGrid');
+  $('wlCount').textContent = watchlist.length + ' pairs';
+  $('wlEmpty').style.display = watchlist.length ? 'none' : 'block';
+  g.innerHTML = watchlist.map(sym => {
+    const p = findPair(sym);
+    if (!p) return `<div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+      <div class="flex items-center justify-between"><span class="mono font-bold text-slate-200">${sym}</span>
+      <button data-rm="${sym}" class="text-xs text-slate-500 hover:text-rose-400">✕</button></div>
+      <div class="mt-6 text-xs text-slate-600">awaiting feed…</div></div>`;
+    const active = p.confidence >= threshold && p.direction !== 'NEUTRAL';
+    const up = p.change24h >= 0;
+    return `<div class="rounded-xl border border-slate-800 bg-slate-900/60 p-4 ${active ? (p.direction==='CALL'?'glow-up':'glow-dn') : ''}">
+      <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
+        <div class="min-w-0">
+          <div class="mono truncate text-sm font-bold tracking-tight text-slate-100">${p.symbol}</div>
+          <div class="mono text-[11px] ${up?'text-emerald-400':'text-rose-400'}">${up?'▲':'▼'} ${Math.abs(p.change24h).toFixed(2)}%</div>
+        </div>
+        <button data-rm="${p.symbol}" class="shrink-0 rounded-md px-2 py-1 text-xs text-slate-500 ring-1 ring-slate-800 transition hover:bg-rose-500/10 hover:text-rose-400">Remove</button>
+      </div>
+      <div class="mono mt-3 text-2xl font-bold text-slate-50" data-price="${p.symbol}">${fmt(p.price)}</div>
+      <div class="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+        <div class="rounded-lg bg-slate-950/70 px-2 py-1.5"><span class="text-slate-500">RSI</span> <span class="mono float-right font-semibold ${p.rsi>70?'text-rose-400':p.rsi<30?'text-emerald-400':'text-slate-300'}">${p.rsi.toFixed(1)}</span></div>
+        <div class="rounded-lg bg-slate-950/70 px-2 py-1.5"><span class="text-slate-500">Z</span> <span class="mono float-right font-semibold text-slate-300">${p.zscore.toFixed(2)}</span></div>
+      </div>
+      <div class="mt-3 flex items-center justify-between border-t border-slate-800 pt-3">
+        <span class="mono text-sm font-extrabold tracking-wide ${sigClasses(p.direction)}">${p.direction}</span>
+        <span class="mono rounded-md px-2 py-1 text-[11px] font-bold ${active?'bg-cyan-500/15 text-cyan-300 ring-1 ring-cyan-500/30':'bg-slate-800/70 text-slate-500'}">${p.confidence.toFixed(0)}%</span>
+      </div>
+    </div>`;
   }).join('');
 }
 
-async function setExec(v) {
-  try { const d = await api('/api/execution', 'POST', { enabled: v }); renderStatus(await api('/api/status')); } catch (e) { console.error(e); }
-}
-async function setConf(v) {
-  try { await api('/api/confidence', 'POST', { value: Number(v) }); renderStatus(await api('/api/status')); } catch (e) { console.error(e); }
-}
-async function adjConf(delta) {
-  try { await api('/api/confidence/adjust', 'POST', { delta }); renderStatus(await api('/api/status')); } catch (e) { console.error(e); }
+function renderMarket(){
+  const rows = pairs.filter(p => !filter || p.symbol.includes(filter));
+  $('mktCount').textContent = rows.length + ' / ' + pairs.length;
+  $('mktBody').innerHTML = rows.map(p => {
+    const inWl = watchlist.includes(p.symbol);
+    const up = p.change24h >= 0;
+    return `<tr class="transition hover:bg-slate-800/30">
+      <td class="px-4 py-2.5 mono font-semibold text-slate-200">${p.symbol}</td>
+      <td class="px-4 py-2.5 text-right mono text-slate-100">${fmt(p.price)}</td>
+      <td class="px-4 py-2.5 text-right mono ${up?'text-emerald-400':'text-rose-400'}">${up?'+':''}${p.change24h.toFixed(2)}%</td>
+      <td class="px-4 py-2.5 text-right mono ${p.rsi>70?'text-rose-400':p.rsi<30?'text-emerald-400':'text-slate-400'}">${p.rsi.toFixed(1)}</td>
+      <td class="px-4 py-2.5 text-right mono text-slate-400">${p.zscore.toFixed(2)}</td>
+      <td class="px-4 py-2.5 text-center mono font-bold ${sigClasses(p.direction)}">${p.direction}</td>
+      <td class="px-4 py-2.5 text-right mono ${p.confidence>=threshold?'text-cyan-300':'text-slate-500'}">${p.confidence.toFixed(0)}%</td>
+      <td class="px-4 py-2.5 text-right">
+        <button data-add="${p.symbol}" ${inWl?'disabled':''} class="rounded-md px-2.5 py-1 text-xs font-semibold ring-1 transition ${inWl?'cursor-default text-slate-600 ring-slate-800':'text-emerald-300 ring-emerald-500/30 hover:bg-emerald-500/15'}">${inWl?'Tracking':'+ Add'}</button>
+      </td></tr>`;
+  }).join('') || `<tr><td colspan="8" class="px-4 py-10 text-center text-slate-600">No pairs match “${filter}”.</td></tr>`;
 }
 
-async function refresh() {
-  try { renderStatus(await api('/api/status')); } catch (e) { $('#wWS').textContent = '⚠️ Server offline'; }
-  try { renderPairs(await api('/api/pairs?limit=20')); } catch (e) { /* পরের চক্রে */ }
+document.addEventListener('click', e => {
+  const rm = e.target.closest('[data-rm]'), ad = e.target.closest('[data-add]');
+  if (rm) removePair(rm.dataset.rm);
+  if (ad && !ad.disabled) addPair(ad.dataset.add);
+});
+
+function render(){ renderWatchlist(); renderMarket(); }
+
+async function poll(){
+  try {
+    const [s, p] = await Promise.all([
+      fetch('/api/status').then(r => r.json()),
+      fetch('/api/pairs').then(r => r.json())
+    ]);
+    $('uptime').textContent = hhmmss(s.uptimeSeconds || 0);
+    $('signalCount').textContent = (s.totalSignals ?? 0).toLocaleString();
+    $('binDot').className = 'pulse-dot h-2 w-2 rounded-full ' + (s.binance ? 'bg-emerald-400' : 'bg-rose-500');
+    $('oanDot').className = 'pulse-dot h-2 w-2 rounded-full ' + (s.oanda ? 'bg-emerald-400' : 'bg-rose-500');
+    pairs = p.pairs || [];
+    const before = {}; pairs.forEach(x => before[x.symbol] = x.price);
+    render();
+    pairs.forEach(x => {
+      const prev = prevPrice[x.symbol];
+      if (prev !== undefined && prev !== x.price) {
+        const el = document.querySelector(`[data-price="${x.symbol}"]`);
+        if (el) { el.classList.add(x.price > prev ? 'flash-up' : 'flash-dn'); setTimeout(()=>el.classList.remove('flash-up','flash-dn'), 500); }
+      }
+    });
+    prevPrice = before;
+  } catch (err) { console.error('feed error', err); }
 }
-refresh();
-setInterval(refresh, 2000);
+
+renderExec(); render(); poll(); setInterval(poll, 2000);
 </script>
 </body>
 </html>
