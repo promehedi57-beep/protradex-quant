@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ProTradeX Quant — Dashboard</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#070b14;--card:rgba(255,255,255,.05);--brd:rgba(255,255,255,.1);--gold:#ffd166;--cyan:#00d4ff;--up:#00e676;--down:#ff5252;--txt:#eef2ff;--mut:#8b93a7}
+body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:radial-gradient(1100px 600px at 85% -10%,rgba(0,212,255,.13),transparent 55%),radial-gradient(900px 500px at 0% 110%,rgba(255,209,102,.08),transparent 55%),var(--bg);color:var(--txt);min-height:100vh;padding:22px 18px 60px}
+.wrap{max-width:1180px;margin:0 auto}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+h1{font-size:22px;background:linear-gradient(135deg,#ffd166,#00d4ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.chip{font-size:12px;padding:5px 12px;border-radius:99px;border:1px solid var(--brd);background:var(--card)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:18px}
+.card{background:var(--card);border:1px solid var(--brd);border-radius:16px;padding:16px;backdrop-filter:blur(10px)}
+.card .l{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.card .v{font-size:24px;font-weight:800}
+.controls{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+.ctl{flex:1;min-width:250px;background:var(--card);border:1px solid var(--brd);border-radius:16px;padding:16px}
+.ctl h3{font-size:14px;margin-bottom:12px;color:var(--cyan)}
+.btn{border:none;cursor:pointer;font-family:inherit;font-weight:700;padding:11px 18px;border-radius:10px;font-size:14px;transition:.2s;min-height:42px}
+.btn:hover{transform:translateY(-2px)}
+.b-gold{background:linear-gradient(135deg,#ffd166,#ff9f1c);color:#1a1200}
+.b-cy{background:linear-gradient(135deg,#00d4ff,#0091ff);color:#00121c}
+.b-ghost{background:rgba(255,255,255,.07);color:var(--txt);border:1px solid var(--brd)}
+.mini{font-size:12px;padding:8px 14px}
+.inp{background:rgba(255,255,255,.05);border:1px solid var(--brd);border-radius:10px;padding:10px 12px;color:var(--txt);font-family:inherit;font-size:14px;width:90px;text-align:center;outline:none}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:7px;vertical-align:middle}
+.on{background:var(--up);box-shadow:0 0 10px rgba(0,230,118,.6)}
+.off{background:var(--down);box-shadow:0 0 10px rgba(255,82,82,.6)}
+.tbl{width:100%;border-collapse:collapse;font-size:13px;background:var(--card);border:1px solid var(--brd);border-radius:16px;overflow:hidden}
+.tbl th{text-align:left;padding:12px 14px;color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--brd)}
+.tbl td{padding:11px 14px;border-bottom:1px solid rgba(255,255,255,.05);font-variant-numeric:tabular-nums}
+.tbl tr:hover td{background:rgba(255,255,255,.03)}
+.bar{height:7px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;min-width:70px}
+.bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#ff5252,#ffd166,#00e676)}
+.badge{padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700}
+.b-call{background:rgba(0,230,118,.15);color:var(--up)}
+.b-put{background:rgba(255,82,82,.15);color:var(--down)}
+.up{color:var(--up)}.down{color:var(--down)}.mut{color:var(--mut);font-size:12px}
+@media(max-width:640px){.tbl{font-size:11px}.tbl th,.tbl td{padding:8px 8px}.v{font-size:20px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>📊 ProTradeX Quant Engine — Control Dashboard</h1>
+    <div class="chip" id="chipUptime">⏱ —</div>
+  </header>
+
+  <div class="grid">
+    <div class="card"><div class="l">Binance WS</div><div class="v" id="wWS">—</div></div>
+    <div class="card"><div class="l">Scanning Pairs</div><div class="v" id="wPairs">0</div></div>
+    <div class="card"><div class="l">Total Signals</div><div class="v" style="color:var(--gold)" id="wSignals">0</div></div>
+    <div class="card"><div class="l">Execution Mode</div><div class="v" id="wMode">—</div></div>
+    <div class="card"><div class="l">Min Confidence</div><div class="v" style="color:var(--cyan)" id="wConf">—</div></div>
+    <div class="card"><div class="l">p95 Latency</div><div class="v" id="wLat">—</div></div>
+  </div>
+
+  <div class="controls">
+    <div class="ctl">
+      <h3>⚡ Execution Mode</h3>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn b-gold" onclick="setExec(true)">🟢 REAL ON</button>
+        <button class="btn b-ghost" onclick="setExec(false)">🟡 DRY-RUN</button>
+      </div>
+      <p class="mut" id="execNote" style="margin-top:10px"></p>
+    </div>
+    <div class="ctl">
+      <h3>🎯 Min Confidence Threshold</h3>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn b-ghost mini" onclick="adjConf(-5)">−5%</button>
+        <input class="inp" id="confInp" type="number" min="0" max="97" onchange="setConf(this.value)">
+        <button class="btn b-ghost mini" onclick="adjConf(5)">+5%</button>
+        <button class="btn b-cy mini" onclick="setConf(document.getElementById('confInp').value)">সেভ</button>
+      </div>
+      <p class="mut" style="margin-top:10px">রিস্টার্ট ছাড়াই instant আপডেট — সব রুল ইঞ্জিনে সাথে সাথে প্রযোজ্য</p>
+    </div>
+  </div>
+
+  <h2 style="font-size:17px;margin-bottom:12px">📈 Live Market Table <span class="mut">(টপ ২০ — প্রতি ২ সেকেন্ডে অটো-রিফ্রেশ)</span></h2>
+  <table class="tbl">
+    <thead><tr><th>#</th><th>Symbol</th><th>Price</th><th>RSI(14)</th><th>ADX(14)</th><th>Z-Score(20)</th><th>Confidence</th><th>Signal</th></tr></thead>
+    <tbody id="rows"><tr><td colspan="8" class="mut" style="text-align:center;padding:22px">ডেটা লোড হচ্ছে…</td></tr></tbody>
+  </table>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = (v, d) => v == null || !Number.isFinite(Number(v)) ? '—' : Number(v).toLocaleString('en-US', { maximumFractionDigits: d == null ? 4 : d });
+
+async function api(path, method = 'GET', body) {
+  const r = await fetch(path, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+function renderStatus(d) {
+  $('#chipUptime').textContent = '⏱ Uptime: ' + d.uptimeHuman;
+  $('#wWS').innerHTML = '<span class="dot ' + (d.wsConnected ? 'on' : 'off') + '"></span>' + (d.wsConnected ? 'Connected' : 'Disconnected');
+  $('#wPairs').textContent = d.pairs;
+  $('#wSignals').textContent = d.signals;
+  $('#wConf').textContent = d.minConfidence + '%';
+  $('#wLat').textContent = d.latencyP95Ms + 'ms';
+  const real = d.executionEnabled;
+  $('#wMode').innerHTML = '<span class="dot ' + (real ? 'on' : 'off') + '"></span>' + (real ? '🟢 REAL' : '🟡 DRY-RUN');
+  $('#wMode').style.color = real ? 'var(--up)' : 'var(--gold)';
+  $('#execNote').textContent = 'Last candle: ' + (d.lastCandleAgo == null ? '—' : d.lastCandleAgo + 's আগে') + ' · Candles: ' + d.candles;
+  $('#confInp').value = d.minConfidence;
+}
+
+function renderPairs(list) {
+  const tb = $('#rows');
+  if (!list.length) { tb.innerHTML = '<tr><td colspan="8" class="mut" style="text-align:center;padding:22px">ওয়ার্ম-আপ চলছে… (সিগনাল তৈরি হতে ~২৫ মিনিট)</td></tr>'; return; }
+  tb.innerHTML = list.map((p, i) => {
+    const conf = p.confidence || 0;
+    const dir = p.direction === 'CALL' ? '<span class="badge b-call">🟢 CALL</span>' : p.direction === 'PUT' ? '<span class="badge b-put">🔴 PUT</span>' : '<span class="mut">—</span>';
+    return '<tr>' +
+      '<td>' + (i + 1) + '</td>' +
+      '<td><b>' + esc(p.symbol) + '</b></td>' +
+      '<td>' + num(p.price, p.price >= 1000 ? 2 : 4) + '</td>' +
+      '<td>' + (p.rsi == null ? '—' : p.rsi.toFixed(1)) + '</td>' +
+      '<td>' + (p.adx == null ? '—' : p.adx.toFixed(1)) + '</td>' +
+      '<td>' + (p.zscore == null ? '—' : '<span class="' + (p.zscore < -1 ? 'up' : p.zscore > 1 ? 'down' : '') + '">' + p.zscore.toFixed(2) + '</span>') + '</td>' +
+      '<td><div style="display:flex;align-items:center;gap:8px"><div class="bar"><i style="width:' + conf + '%"></i></div><b>' + conf + '%</b></div></td>' +
+      '<td>' + dir + '</td></tr>';
+  }).join('');
+}
+
+async function setExec(v) {
+  try { const d = await api('/api/execution', 'POST', { enabled: v }); renderStatus(await api('/api/status')); } catch (e) { console.error(e); }
+}
+async function setConf(v) {
+  try { await api('/api/confidence', 'POST', { value: Number(v) }); renderStatus(await api('/api/status')); } catch (e) { console.error(e); }
+}
+async function adjConf(delta) {
+  try { await api('/api/confidence/adjust', 'POST', { delta }); renderStatus(await api('/api/status')); } catch (e) { console.error(e); }
+}
+
+async function refresh() {
+  try { renderStatus(await api('/api/status')); } catch (e) { $('#wWS').textContent = '⚠️ Server offline'; }
+  try { renderPairs(await api('/api/pairs?limit=20')); } catch (e) { /* পরের চক্রে */ }
+}
+refresh();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>
