@@ -1,0 +1,19 @@
+{
+  "name": "protradex-quant",
+  "version": "2.0.0",
+  "description": "Zero-latency multi-market quantitative signal engine (pure math, no AI)",
+  "main": "src/index.js",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node src/index.js",
+    "dry": "EXECUTION_ENABLED=false TELEGRAM_ENABLED=false node src/index.js",
+    "feed:binance": "FEED=binance node src/index.js",
+    "feed:oanda": "FEED=oanda node src/index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "puppeteer": "^23.0.0",
+    "ws": "^8.18.0"
+  }
+}
