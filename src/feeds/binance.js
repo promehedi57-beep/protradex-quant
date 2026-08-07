@@ -1,6 +1,6 @@
 'use strict';
 const WebSocket = require('ws');
-const cfg = require('./config');
+const cfg = require('../config'); // ১) ফিক্সড: এক ফোল্ডার পেছনে গিয়ে config.js খুঁজবে
 
 async function mapLimit(items, limit, fn) {
   const results = new Array(items.length);
@@ -18,8 +18,9 @@ async function mapLimit(items, limit, fn) {
 }
 
 class BinanceFeed {
-  constructor({ engine }) {
-    this.engine = engine;
+  constructor(opts = {}) {
+    // engine প্রপার্টি অবজেক্ট বা ফাংশন দুভাবেই সাপোর্ট করবে
+    this.engine = opts.engine || opts;
     this.pairs = [];
     this.ws = null;
     this.backoff = 1000;
@@ -29,39 +30,49 @@ class BinanceFeed {
   }
 
   async start() {
-    await this._refreshPairs();                    // ১) সব active পেয়ার আবিষ্কার
-    this._openSocket();                            // ২) কম্বাইন্ড kline_1m স্ট্রিম
-    if (cfg.PAIR_REFRESH_HOURS > 0) {              // ৩) নতুন লিস্টিং অটো-অ্যাড
+    await this._refreshPairs();
+    this._openSocket();
+    const refreshHours = cfg.PAIR_REFRESH_HOURS || 1;
+    if (refreshHours > 0) {
       this.refreshTimer = setInterval(
         () => this._refreshPairs().catch(e => console.error('[binance] refresh fail:', e.message)),
-        cfg.PAIR_REFRESH_HOURS * 3600 * 1000
+        refreshHours * 3600 * 1000
       );
       if (this.refreshTimer.unref) this.refreshTimer.unref();
     }
   }
 
   async _fetchActivePairs() {
-    const res = await fetch(cfg.BINANCE_REST_URL + '/api/v3/ticker/24hr');
+    const restUrl = cfg.BINANCE_REST_URL || 'https://api.binance.com';
+    const quote = cfg.QUOTE_ASSET || 'USDT';
+    const minVol = cfg.MIN_24H_QUOTE_VOLUME || 1000000;
+    const maxPairs = cfg.MAX_PAIRS || 20;
+
+    const res = await fetch(restUrl + '/api/v3/ticker/24hr');
     if (!res.ok) throw new Error('Binance REST ' + res.status);
     const data = await res.json();
-    const quote = cfg.QUOTE_ASSET;
     return data
-      .filter(t => t.symbol.endsWith(quote) && Number(t.quoteVolume || 0) >= cfg.MIN_24H_QUOTE_VOLUME)
+      .filter(t => t.symbol.endsWith(quote) && Number(t.quoteVolume || 0) >= minVol)
       .sort((a, b) => Number(b.quoteVolume) - Number(a.quoteVolume))
-      .slice(0, cfg.MAX_PAIRS)
+      .slice(0, maxPairs)
       .map(t => t.symbol);
   }
 
   async _seedHistory(symbol) {
-    const url = cfg.BINANCE_REST_URL + '/api/v3/klines?symbol=' + symbol +
-                '&interval=' + cfg.TIMEFRAME + '&limit=' + cfg.BUFFER_CANDLES;
+    const restUrl = cfg.BINANCE_REST_URL || 'https://api.binance.com';
+    const timeframe = cfg.TIMEFRAME || '1m';
+    const limit = cfg.BUFFER_CANDLES || 100;
+    const url = `${restUrl}/api/v3/klines?symbol=${symbol}&interval=${timeframe}&limit=${limit}`;
+
     try {
       const res = await fetch(url);
       if (!res.ok) return;
       const k = await res.json();
-      this.engine.seedHistory(symbol, k.map(r => ({ open: +r[1], high: +r[2], low: +r[3], close: +r[4], volume: +r[5] })));
+      if (this.engine && typeof this.engine.seedHistory === 'function') {
+        this.engine.seedHistory(symbol, k.map(r => ({ open: +r[1], high: +r[2], low: +r[3], close: +r[4], volume: +r[5] })));
+      }
     } catch (e) {
-      console.warn('[binance] history fail', symbol, e.message);  // ওয়ার্ম-আপ ছাড়াই চলবে
+      console.warn('[binance] history fail', symbol, e.message);
     }
   }
 
@@ -79,6 +90,7 @@ class BinanceFeed {
       this.pairs = list;
     } catch (e) {
       console.error('[binance] pair refresh fail:', e.message);
+      if (!this.pairs.length) this.pairs = ['BTCUSDT']; // ফলব্যাক পেয়ার
     }
   }
 
@@ -86,10 +98,17 @@ class BinanceFeed {
     if (this.stopped) return;
     if (this.ws) { try { this.ws.terminate(); } catch (e) { } this.ws = null; }
     if (!this.pairs.length) { this._scheduleReconnect(); return; }
-    const streams = this.pairs.map(s => s.toLowerCase() + '@kline_' + cfg.TIMEFRAME).join('/');
-    const ws = new WebSocket(cfg.BINANCE_WS_URL + '/stream?streams=' + streams);
+
+    const timeframe = cfg.TIMEFRAME || '1m';
+    const wsUrl = cfg.BINANCE_WS_URL || 'wss://stream.binance.com:9443';
+    const streams = this.pairs.map(s => s.toLowerCase() + '@kline_' + timeframe).join('/');
+    const ws = new WebSocket(wsUrl + '/stream?streams=' + streams);
     this.ws = ws;
-    ws.on('open', () => { this.backoff = 1000; console.log('[binance] 🟢 WS কানেক্টেড —', this.pairs.length, 'পেয়ার লাইভ'); });
+
+    ws.on('open', () => { 
+      this.backoff = 1000; 
+      console.log('[binance] 🟢 WS কানেক্টেড —', this.pairs.length, 'পেয়ার লাইভ'); 
+    });
     ws.on('message', raw => this._onMessage(raw));
     ws.on('close', () => { if (this.ws === ws) { this.ws = null; this._scheduleReconnect(); } });
     ws.on('error', e => { console.error('[binance] ws error:', e.message); try { ws.terminate(); } catch (e2) { } });
@@ -106,10 +125,17 @@ class BinanceFeed {
     try {
       const msg = JSON.parse(String(raw));
       const k = msg && msg.data && msg.data.k;
-      if (!k || !k.x) return;                        // ★ শুধু CLOSED ক্যান্ডেল (k.x===true)
+      if (!k || !k.x) return;
       const symbol = msg.stream ? msg.stream.split('@')[0].toUpperCase() : ((k.s || '').toUpperCase());
       if (!symbol) return;
-      this.engine.onClosedCandle(symbol, { open: +k.o, high: +k.h, low: +k.l, close: +k.c, volume: +k.v });
+
+      const candleData = { open: +k.o, high: +k.h, low: +k.l, close: +k.c, volume: +k.v };
+
+      if (this.engine && typeof this.engine.onClosedCandle === 'function') {
+        this.engine.onClosedCandle(symbol, candleData);
+      } else if (typeof this.engine === 'function') {
+        this.engine(candleData);
+      }
     } catch (e) {
       console.error('[binance] message parse fail:', e.message);
     }
@@ -123,4 +149,6 @@ class BinanceFeed {
   }
 }
 
-module.exports = { BinanceFeed };
+// ফ্ল্যাক্সিবল এক্সপোর্ট (কোডের যেকোনো ধরনে সাপোর্ট করবে)
+module.exports = BinanceFeed;
+module.exports.BinanceFeed = BinanceFeed;
