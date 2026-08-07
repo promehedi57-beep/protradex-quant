@@ -1,3 +1,10 @@
+const http = require('http');
+const PORT = process.env.PORT || 10000;
+http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('ProTradeX Bot Running');
+}).listen(PORT, () => console.log(`[server] Web server live on port ${PORT}`));
+
 'use strict';
 const cfg = require('./config');
 const { SignalBus } = require('./signals');
