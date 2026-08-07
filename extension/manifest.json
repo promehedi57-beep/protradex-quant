@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "ProTradeX Quotex Executor",
+  "version": "2.0.0",
+  "description": "Zero-latency execution bridge — ProTradeX Quant Engine → Quotex",
+  "permissions": ["storage"],
+  "host_permissions": ["*://*.quotex.io/*"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["*://*.quotex.io/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": { "default_title": "ProTradeX Executor — Bridge Status" }
+}
