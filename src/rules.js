@@ -1,5 +1,5 @@
 'use strict';
-const cfg = require('./config');
+const cfg = require('./config');const rt = require('./state');
 
 /* ---------- সিগনাল অবজেক্ট বিল্ডার (ATR-ভিত্তিক SL/TP) ---------- */
 function buildSignal(snapshot, direction, confidence, reason, ruleId) {
@@ -106,7 +106,7 @@ function evaluate(snapshot) {
   for (const rule of RULES) {
     try {
       const r = rule.check(snapshot);
-      if (r && r.confidence >= cfg.MIN_CONFIDENCE && (!best || r.confidence > best.confidence)) best = r;
+      if (r && r.confidence >= rt.getConfidence() && (!best || r.confidence > best.confidence)) best = r;
     } catch (e) {
       console.error(`[rules] ${rule.id} error:`, e.message); // সাইলেন্ট ফেলিউর নেই
     }
