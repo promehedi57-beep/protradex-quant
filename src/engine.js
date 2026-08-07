@@ -9,10 +9,12 @@ class QuantEngine {
   constructor({ signalBus, metrics }) {
     this.signalBus = signalBus;
     this.metrics = metrics;
-    this.states = new Map();      // symbol → CandleState
-    this.queue = [];              // পেন্ডিং ইভ্যালুয়েশন
+    this.states = new Map();          // symbol → CandleState
+    this.livePrices = new Map();      // symbol → সর্বশেষ টিক প্রাইস (in-progress ক্যান্ডেল)
+    this.lastSignals = new Map();     // symbol → সর্বশেষ best signal (dashboard-এর জন্য)
+    this.queue = [];
     this.processing = false;
-    this.onCandle = null;         // হিটবিট হুক
+    this.onCandle = null;
     this.stats = { candles: 0, evaluations: 0, signals: 0, overBudget: 0, lastLatencyMs: 0 };
   }
 
@@ -31,7 +33,12 @@ class QuantEngine {
     return st;
   }
 
-  /** ফিড থেকে শুধু CLOSED ক্যান্ডেল কল হবে */
+  /** ফিড থেকে চলমান (আনক্লোজড) ক্যান্ডেলের দাম — dashboard-এ live price */
+  onLivePrice(symbol, price) {
+    if (Number.isFinite(price)) this.livePrices.set(symbol, price);
+  }
+
+  /** ফিড থেকে শুধু CLOSED ক্যান্ডেল */
   onClosedCandle(symbol, candle) {
     try {
       const st = this._state(symbol);
@@ -45,14 +52,12 @@ class QuantEngine {
     }
   }
 
-  /** বুটে হিটরি সিডিং (ওয়ার্ম-আপ) — REST থেকে */
+  /** বুটে REST হিটরি সিডিং (ওয়ার্ম-আপ) */
   seedHistory(symbol, candles) {
     if (!Array.isArray(candles) || !candles.length) return;
     const st = this._state(symbol);
     for (const c of candles) {
-      if (c && Number.isFinite(c.close) && Number.isFinite(c.high) && Number.isFinite(c.low)) {
-        st.update(c);
-      }
+      if (c && Number.isFinite(c.close) && Number.isFinite(c.high) && Number.isFinite(c.low)) st.update(c);
     }
     this.stats.candles += candles.length;
   }
@@ -65,12 +70,16 @@ class QuantEngine {
       const batch = this.queue.splice(0, BATCH);
       for (const sym of batch) {
         const st = this.states.get(sym);
-        if (!st || !st.snap || !st.snap.ready) continue;   // ওয়ার্ম-আপ শেষ না হলে স্কিপ
+        if (!st || !st.snap || !st.snap.ready) continue;
         const t0 = Date.now();
         this.stats.evaluations++;
         try {
           const sig = evaluate(st.snap);
-          if (sig) { this.stats.signals++; this.signalBus.emit(sig); }
+          if (sig) {
+            this.stats.signals++;
+            this.lastSignals.set(sym, sig);
+            this.signalBus.emit(sig);
+          }
         } catch (e) {
           console.error('[engine] evaluate error', sym, e.message);
         }
@@ -78,20 +87,37 @@ class QuantEngine {
         if (this.metrics) this.metrics.record(Date.now() - t0);
       }
       if (this.queue.length) {
-        if (Date.now() - start >= cfg.ENGINE_BUDGET_MS) {  // বাজেট শেষ → ইভেন্ট-লুপ ব্লক করছি না
+        if (Date.now() - start >= cfg.ENGINE_BUDGET_MS) {
           this.stats.overBudget++;
           setImmediate(step);
-        } else {
-          step();
-        }
-      } else {
-        this.processing = false;
-      }
+        } else step();
+      } else this.processing = false;
     };
     step();
   }
 
-  snapshot() { return { ...this.stats, pairs: this.states.size }; }
+  /** dashboard + Telegram-এর জন্য per-pair snapshot (confidence অনুযায়ী সাজানো) */
+  getPairsSnapshot(limit = 20) {
+    const out = [];
+    for (const [sym, st] of this.states) {
+      if (!st || !st.snap) continue;
+      const lastSig = this.lastSignals.get(sym);
+      out.push({
+        symbol: sym,
+        price: this.livePrices.get(sym) ?? st.snap.lastClose,
+        rsi: st.snap.rsi,
+        adx: st.snap.adx ? st.snap.adx.adx : null,
+        zscore: st.snap.zscore,
+        slope: st.snap.slope,
+        confidence: lastSig ? lastSig.confidence : 0,
+        direction: lastSig ? lastSig.direction : null
+      });
+    }
+    out.sort((a, b) => (b.confidence - a.confidence) || (b.price - a.price));
+    return out.slice(0, limit);
+  }
+
+  status() { return { ...this.stats, pairs: this.states.size }; }
 }
 
 module.exports = { QuantEngine };
