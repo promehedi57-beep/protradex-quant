@@ -37,6 +37,10 @@ class BinanceFeed {
     this.reconnectTimer = null;
     this.refreshTimer = null;
     this.stopped = false;
+    
+    // নতুন যোগ করা স্ট্যাটাস প্রপার্টি
+    this.connected = false;
+    this.statusCb = (typeof opts.statusCb === 'function') ? opts.statusCb : null;
   }
 
   async start() {
@@ -117,11 +121,23 @@ class BinanceFeed {
 
     ws.on('open', () => { 
       this.backoff = 1000; 
+      this.connected = true;
+      if (this.statusCb) this.statusCb(true);
       console.log('[binance] 🟢 WS কানেক্টেড —', this.pairs.length, 'পেয়ার লাইভ'); 
     });
+
     ws.on('message', raw => this._onMessage(raw));
-    ws.on('close', () => { if (this.ws === ws) { this.ws = null; this._scheduleReconnect(); } });
-    ws.on('error', e => { console.error('[binance] ws error:', e.message); try { ws.terminate(); } catch (e2) { } });
+
+    ws.on('close', () => { 
+      this.connected = false;
+      if (this.statusCb) this.statusCb(false);
+      if (this.ws === ws) { this.ws = null; this._scheduleReconnect(); } 
+    });
+
+    ws.on('error', e => { 
+      console.error('[binance] ws error:', e.message); 
+      try { ws.terminate(); } catch (e2) { } 
+    });
   }
 
   _scheduleReconnect() {
@@ -135,16 +151,18 @@ class BinanceFeed {
     try {
       const msg = JSON.parse(String(raw));
       const k = msg && msg.data && msg.data.k;
-      if (!k || !k.x) return;
+      if (!k) return;
       const symbol = msg.stream ? msg.stream.split('@')[0].toUpperCase() : ((k.s || '').toUpperCase());
       if (!symbol) return;
 
-      const candleData = { open: +k.o, high: +k.h, low: +k.l, close: +k.c, volume: +k.v };
-
-      if (this.engine && typeof this.engine.onClosedCandle === 'function') {
-        this.engine.onClosedCandle(symbol, candleData);
-      } else if (typeof this.engine === 'function') {
-        this.engine(candleData);
+      if (k.x) {                                        // CLOSED ক্যান্ডেল → ইঞ্জিন
+        if (this.engine && typeof this.engine.onClosedCandle === 'function') {
+          this.engine.onClosedCandle(symbol, { open: +k.o, high: +k.h, low: +k.l, close: +k.c, volume: +k.v });
+        }
+      } else {                                          // চলমান ক্যান্ডেল → live price
+        if (this.engine && typeof this.engine.onLivePrice === 'function') {
+          this.engine.onLivePrice(symbol, +k.c);
+        }
       }
     } catch (e) {
       console.error('[binance] message parse fail:', e.message);
