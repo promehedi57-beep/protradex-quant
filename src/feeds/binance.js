@@ -1,6 +1,17 @@
 'use strict';
 const WebSocket = require('ws');
-const cfg = require('../config'); // ১) ফিক্সড: এক ফোল্ডার পেছনে গিয়ে config.js খুঁজবে
+
+// সেফ কনফিগ লোডার (config.js ফাইল অটো-ডিটেক্ট করবে)
+let cfg = {};
+try {
+  cfg = require('../config');
+} catch (e1) {
+  try {
+    cfg = require('./config');
+  } catch (e2) {
+    cfg = {};
+  }
+}
 
 async function mapLimit(items, limit, fn) {
   const results = new Array(items.length);
@@ -19,7 +30,6 @@ async function mapLimit(items, limit, fn) {
 
 class BinanceFeed {
   constructor(opts = {}) {
-    // engine প্রপার্টি অবজেক্ট বা ফাংশন দুভাবেই সাপোর্ট করবে
     this.engine = opts.engine || opts;
     this.pairs = [];
     this.ws = null;
@@ -90,7 +100,7 @@ class BinanceFeed {
       this.pairs = list;
     } catch (e) {
       console.error('[binance] pair refresh fail:', e.message);
-      if (!this.pairs.length) this.pairs = ['BTCUSDT']; // ফলব্যাক পেয়ার
+      if (!this.pairs.length) this.pairs = ['BTCUSDT'];
     }
   }
 
@@ -149,6 +159,5 @@ class BinanceFeed {
   }
 }
 
-// ফ্ল্যাক্সিবল এক্সপোর্ট (কোডের যেকোনো ধরনে সাপোর্ট করবে)
 module.exports = BinanceFeed;
 module.exports.BinanceFeed = BinanceFeed;
