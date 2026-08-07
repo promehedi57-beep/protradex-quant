@@ -61,9 +61,9 @@ const cfg = {
   MIN_INTERVAL_MS: num('MIN_INTERVAL_MS', 60000, 5000, 3600000),
 
   // telegram
-  TELEGRAM_ENABLED: bool('TELEGRAM_ENABLED', false),
   TELEGRAM_BOT_TOKEN: str('TELEGRAM_BOT_TOKEN', ''),
   TELEGRAM_CHAT_ID: str('TELEGRAM_CHAT_ID', ''),
+  TELEGRAM_ENABLED: bool('TELEGRAM_ENABLED', Boolean(str('TELEGRAM_BOT_TOKEN', '') && str('TELEGRAM_CHAT_ID', ''))),
 
   // execution
   EXECUTION_ENABLED: bool('EXECUTION_ENABLED', false),
@@ -82,7 +82,7 @@ const cfg = {
   WEBHOOK_PORT: num('WEBHOOK_PORT', 8788, 1024, 65535),
   WEBHOOK_SECRET: str('WEBHOOK_SECRET', ''),
 
-// oanda
+  // oanda
   OANDA_API_KEY: str('OANDA_API_KEY', ''),
   OANDA_ACCOUNT_ID: str('OANDA_ACCOUNT_ID', ''),
   OANDA_ENV: str('OANDA_ENV', 'practice'),
@@ -90,9 +90,9 @@ const cfg = {
 
   // ops
   STATS_INTERVAL_S: num('STATS_INTERVAL_S', 30, 5, 3600),
-  HEARTBEAT_ALERT_S: num('HEARTBEAT_ALERT_S', 180, 30, 86400)
-};
-// ---- Dashboard (Web UI) ----
+  HEARTBEAT_ALERT_S: num('HEARTBEAT_ALERT_S', 180, 30, 86400),
+
+  // ---- Dashboard (Web UI) ----
   PORT: num('PORT', 10000, 1, 65535),
   DASHBOARD_ENABLED: bool('DASHBOARD_ENABLED', true),
   DASHBOARD_USER: str('DASHBOARD_USER', ''),
@@ -102,4 +102,6 @@ const cfg = {
   // ---- Telegram 2-way bot ----
   TELEGRAM_POLL_TIMEOUT: num('TELEGRAM_POLL_TIMEOUT', 30, 5, 50),
   TELEGRAM_ALLOWED_CHAT_IDS: str('TELEGRAM_ALLOWED_CHAT_IDS', '')
+};
+
 module.exports = cfg;
