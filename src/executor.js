@@ -133,6 +133,12 @@ class Executor {
     }
   }
 
+  /** Dashboard / Telegram থেকে runtime toggle — রিস্টার্ট ছাড়া */
+  setEnabled(v) {
+    this.enabled = !!v;
+    console.log('[executor] EXECUTION → ' + (this.enabled ? '🟢 REAL (ট্রেড চলবে)' : '🟡 DRY-RUN (শুধু লগ)'));
+  }
+
   async stop() {
     if (this.wss) { try { this.wss.close(); } catch (e) { } this.wss = null; }
     if (this.browser) { try { await this.browser.close(); } catch (e) { } this.browser = null; }
