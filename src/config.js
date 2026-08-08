@@ -1,29 +1,47 @@
 'use strict';
 require('dotenv').config();
+
+/* ═══════════════ HELPER FUNCTIONS ═══════════════ */
 const b  = (v, d) => (v === undefined || v === '' ? d : v);
 const nb = (v, d) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
+
 const num = (k, def, min = -Infinity, max = Infinity) => {
   const raw = process.env[k];
   if (raw === undefined || raw === '') return def;
   const v = Number(raw);
-  if (!Number.isFinite(v)) { console.warn(`[config] ${k} invalid, using ${def}`); return def; }
+  if (!Number.isFinite(v)) { 
+    console.warn(`[config] ${k} invalid, using default ${def}`); 
+    return def; 
+  }
   return Math.min(max, Math.max(min, v));
 };
-const str = (k, def) => { const v = process.env[k]; return v === undefined || v === '' ? def : String(v).trim(); };
+
+const str = (k, def) => { 
+  const v = process.env[k]; 
+  return v === undefined || v === '' ? def : String(v).trim(); 
+};
+
 const bool = (k, def) => {
   const raw = String(process.env[k] ?? '').toLowerCase();
   if (['1', 'true', 'yes', 'on'].includes(raw)) return true;
   if (['0', 'false', 'no', 'off'].includes(raw)) return false;
   return def;
 };
-let symbolMap = {};
-try { const raw = str('QUOTEX_SYMBOL_MAP', ''); if (raw) symbolMap = JSON.parse(raw); } catch (e) { console.warn('[config] QUOTEX_SYMBOL_MAP invalid JSON'); }
 
+// Safe JSON Parsing for Symbol Map
+let symbolMap = {};
+try { 
+  const raw = str('QUOTEX_SYMBOL_MAP', ''); 
+  if (raw) symbolMap = JSON.parse(raw); 
+} catch (e) { 
+  console.warn('[config] QUOTEX_SYMBOL_MAP invalid JSON'); 
+}
+
+/* ═══════════════ MAIN CONFIGURATION ═══════════════ */
 const cfg = {
-  // feed
+  // Feed Base
   FEED: str('FEED', 'binance'),
   BINANCE_REST_URL: str('BINANCE_REST_URL', 'https://api.binance.com'),
-  BINANCE_WS_URL: str('BINANCE_WS_URL', 'wss://stream.binance.com:9443'),
   QUOTE_ASSET: str('QUOTE_ASSET', 'USDT'),
   MIN_24H_QUOTE_VOLUME: num('MIN_24H_QUOTE_VOLUME', 10_000_000, 0),
   MAX_PAIRS: num('MAX_PAIRS', 200, 1, 1000),
@@ -32,11 +50,11 @@ const cfg = {
   MIN_CANDLES: num('MIN_CANDLES', 60, 30, 500),
   PAIR_REFRESH_HOURS: num('PAIR_REFRESH_HOURS', 12, 0, 168),
 
-  // session
+  // Session
   FOREX_SESSION_ENABLED: bool('FOREX_SESSION_ENABLED', true),
   OTC_BLACKOUT: str('OTC_BLACKOUT', ''),
 
-  // rules
+  // Rules Base
   RSI_PERIOD: num('RSI_PERIOD', 14, 2, 100),
   RSI_OVERSOLD: num('RSI_OVERSOLD', 30, 5, 45),
   RSI_OVERBOUGHT: num('RSI_OVERBOUGHT', 70, 55, 95),
@@ -55,56 +73,20 @@ const cfg = {
   MACD_SLOW: num('MACD_SLOW', 26, 3, 100),
   MACD_SIGNAL: num('MACD_SIGNAL', 9, 2, 50),
 
-  // engine
-  ENGINE_BUDGET_MS: num('ENGINE_BUDGET_MS', 50, 10, 500),
-  MIN_CONFIDENCE: num('MIN_CONFIDENCE', 65, 0, 97),
-  SIGNAL_COOLDOWN_MS: num('SIGNAL_COOLDOWN_MS', 300000, 10000, 86400000),
-  MIN_INTERVAL_MS: num('MIN_INTERVAL_MS', 60000, 5000, 3600000),
-
-  // telegram
-  TELEGRAM_BOT_TOKEN: str('TELEGRAM_BOT_TOKEN', ''),
-  TELEGRAM_CHAT_ID: str('TELEGRAM_CHAT_ID', ''),
-  TELEGRAM_ENABLED: bool('TELEGRAM_ENABLED', Boolean(str('TELEGRAM_BOT_TOKEN', '') && str('TELEGRAM_CHAT_ID', ''))),
-
-  // execution
-  EXECUTION_ENABLED: bool('EXECUTION_ENABLED', false),
-  EXECUTOR: str('EXECUTOR', 'extension'),
-  EXTENSION_WS_PORT: num('EXTENSION_WS_PORT', 8787, 1024, 65535),
-  QUOTEX_URL: str('QUOTEX_URL', 'https://quotex.io/'),
-  QUOTEX_PROFILE_DIR: str('QUOTEX_PROFILE_DIR', './.quotex-profile'),
-  QUOTEX_ASSET_INPUT: str('QUOTEX_ASSET_INPUT', 'input[placeholder*="Search"], input[placeholder*="Поиск"]'),
-  QUOTEX_ASSET_ITEM: str('QUOTEX_ASSET_ITEM', '.asset-item, .search-result__item'),
-  QUOTEX_CALL_BTN: str('QUOTEX_CALL_BTN', '[data-testid="call-button"], button[class*="call"]'),
-  QUOTEX_PUT_BTN: str('QUOTEX_PUT_BTN', '[data-testid="put-button"], button[class*="put"]'),
-  QUOTEX_SYMBOL_MAP: symbolMap,
-
-  // webhook
+  // Webhook
   WEBHOOK_ENABLED: bool('WEBHOOK_ENABLED', false),
   WEBHOOK_PORT: num('WEBHOOK_PORT', 8788, 1024, 65535),
   WEBHOOK_SECRET: str('WEBHOOK_SECRET', ''),
 
-  // oanda
-  OANDA_API_KEY: str('OANDA_API_KEY', ''),
-  OANDA_ACCOUNT_ID: str('OANDA_ACCOUNT_ID', ''),
-  OANDA_ENV: str('OANDA_ENV', 'practice'),
-  OANDA_INSTRUMENTS: str('OANDA_INSTRUMENTS', 'EUR_USD,GBP_USD,USD_JPY,XAU_USD').split(',').filter(Boolean),
-
-  // ops
+  // Ops
   STATS_INTERVAL_S: num('STATS_INTERVAL_S', 30, 5, 3600),
   HEARTBEAT_ALERT_S: num('HEARTBEAT_ALERT_S', 180, 30, 86400),
 
-  // ---- Dashboard (Web UI) ----
-  PORT: num('PORT', 10000, 1, 65535),
-  DASHBOARD_ENABLED: bool('DASHBOARD_ENABLED', true),
-  DASHBOARD_USER: str('DASHBOARD_USER', ''),
-  DASHBOARD_PASS: str('DASHBOARD_PASS', ''),
-  DASHBOARD_REFRESH_MS: num('DASHBOARD_REFRESH_MS', 2000, 500, 30000),
-
-  // ---- Telegram 2-way bot ----
-  TELEGRAM_POLL_TIMEOUT: num('TELEGRAM_POLL_TIMEOUT', 30, 5, 50),
-  TELEGRAM_ALLOWED_CHAT_IDS: str('TELEGRAM_ALLOWED_CHAT_IDS', '')
+  // Rules Container (Initialized before Phase 4 merge)
+  RULES: {}
 };
-/* ═══════════════ PHASE 4 · UPGRADE BLOCK (idempotent — safe to re-insert) ═══════════════ */
+
+/* ═══════════════ PHASE 4 · UPGRADE BLOCK ═══════════════ */
 
 /* HTTP server — Render binds only PORT */
 cfg.PORT                 = nb(process.env.PORT, 10000);
@@ -156,8 +138,8 @@ cfg.QUOTEX_ASSET_ITEM  = b(process.env.QUOTEX_ASSET_ITEM, 'div[class*="asset"]')
 cfg.QUOTEX_CALL_BTN    = b(process.env.QUOTEX_CALL_BTN, 'button[class*="call"]');
 cfg.QUOTEX_PUT_BTN     = b(process.env.QUOTEX_PUT_BTN, 'button[class*="put"]');
 cfg.QUOTEX_SYMBOL_MAP  = (() => {
-  try { return process.env.QUOTEX_SYMBOL_MAP ? JSON.parse(process.env.QUOTEX_SYMBOL_MAP) : {}; }
-  catch (e) { return {}; }
+  try { return process.env.QUOTEX_SYMBOL_MAP ? JSON.parse(process.env.QUOTEX_SYMBOL_MAP) : symbolMap; }
+  catch (e) { return symbolMap; }
 })();
 
 /* ═══ Telegram — STRICT access control ═══ */
@@ -220,5 +202,6 @@ cfg.RULES = Object.assign({}, cfg.RULES, {
 cfg.MARKET_OPEN_UTC    = nb(process.env.MARKET_OPEN_UTC, 0);
 cfg.MARKET_CLOSE_UTC   = nb(process.env.MARKET_CLOSE_UTC, 24);
 cfg.MARKET_TIMEZONE    = b(process.env.MARKET_TIMEZONE, 'UTC');
-/* ═══════════════ END PHASE 4 BLOCK ═══════════════ */
+
+/* ═══════════════ EXPORT CONFIG ═══════════════ */
 module.exports = cfg;
