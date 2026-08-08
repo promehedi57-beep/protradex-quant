@@ -8,7 +8,7 @@
  */
 
 const cfg = require('./config');
-const MS_1M = 60 * 1000; // Directly defined to avoid circular dependency with aggregator
+const { MS_1M } = require('./aggregator');
 
 class TFEngine {
   /**
