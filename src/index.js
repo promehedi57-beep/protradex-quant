@@ -8,10 +8,11 @@ const { Metrics } = require('./metrics');
 const { Engine } = require('./engine');
 const { BinanceFeed, TwelveDataFeed, OTCSimFeed } = require('./feed');
 const { Executor } = require('./executor');
-const { TelegramBot } = require('./telegram');
+const { createTelegram } = require('./telegram'); // ফিক্সড টেলিগ্রাম মডিউল
 const { AIVision } = require('./aiVision');
-const { createDashboard } = require('./dashboard');
-const { attachWs } = require('./ws');
+const { SignalStore } = require('./signalStore'); // সিগন্যাল সিঙ্গেল সোর্স অব ট্রুথ
+const { boot } = require('./dashboard');         // ফিক্সড ড্যাশবোর্ড ও API স্ট্যাটাস
+const { attachWS } = require('./ws');            // ফিক্সড রিয়েল-টাইম WebSocket
 
 async function main() {
   console.log(`[qx] starting · node ${process.version} · port ${cfg.PORT}`);
@@ -22,13 +23,33 @@ async function main() {
   const executor = new Executor({ enabled: rt.getExecution() });
   rt.onExecutionChange(v => executor.setEnabled(v));
 
-  const bot = new TelegramBot({ metrics, engine, rt });
+  // ফিক্সড টেলিগ্রাম ইনিশিয়ালাইজেশন
+  const bot = createTelegram({
+    token: cfg.TELEGRAM_BOT_TOKEN,
+    allowed: cfg.TELEGRAM_ALLOWED_CHAT_IDS,
+    admins: cfg.TELEGRAM_ADMIN_IDS,
+    targets: cfg.TELEGRAM_BROADCAST_TARGETS,
+    alertsEnabled: cfg.TELEGRAM_ALERTS_ENABLED ?? true
+  });
+
+  // সেন্ট্রাল সিগন্যাল স্টোর (যা ড্যাশবোর্ড ও ডব্লিউএস-এ ডেটা পাঠাবে)
+  const signalStore = new SignalStore();
 
   /* critical signal path — numeric, guarded, never throws */
   signalBus.onSignal(async (sig) => {
     try { metrics.logSignal(sig); } catch (e) {}
-    if (rt.getAlerts()) { try { await bot.notify(sig); } catch (e) {} }
-    if (executor.enabled) { try { await executor.execute(sig); } catch (e) {} }
+    
+    // সিগন্যাল স্টোরে সেভ করা (যাতে সাথে সাথে UI-তে শো করে)
+    try { signalStore.upsert(sig); } catch (e) {}
+
+    // টেলিগ্রাম অ্যালার্ট
+    if (rt.getAlerts() && bot.enabled) { 
+      try { await bot.shareSignal(sig); } catch (e) {} 
+    }
+    
+    if (executor.enabled) { 
+      try { await executor.execute(sig); } catch (e) {} 
+    }
   });
 
   /* feeds → unified tick into engine aggregator */
@@ -46,14 +67,20 @@ async function main() {
       ? new OTCSimFeed({ onTick }).start()
       : null,
   };
+  
   const feedsStatus = () => ({
     binance: feeds.binance ? feeds.binance.isConnected() : false,
     oanda: feeds.fx ? feeds.fx.isConnected() : false,
     otc: feeds.otc ? feeds.otc.isConnected() : false,
   });
 
-  if (cfg.TELEGRAM_ENABLED) await bot.start();
-  rt.onAlertsChange(v => bot.setAlerts(v));
+  // টেলিগ্রাম লং পোলিং স্টার্ট (যদি টোকেন থাকে)
+  if (cfg.TELEGRAM_ENABLED && bot.enabled) {
+    bot.startPolling();
+  }
+  rt.onAlertsChange(v => {
+    // runtime alerts sync
+  });
 
   /* isolated AI layer — never wired into the signal path */
   const ai = new AIVision();
@@ -61,11 +88,32 @@ async function main() {
   const hb = setInterval(() => { try { engine.pump && engine.pump(); } catch (e) {} }, 1);
   if (hb.unref) hb.unref();
 
+  // ড্যাশবোর্ড এবং রিয়েল-টাইম WebSocket সার্ভার বুট করা
   if (cfg.DASHBOARD_ENABLED) {
-    const dash = createDashboard({ engine, ai, feedsStatus, rt, telegram: bot, metrics });
-    const server = dash.listen(cfg.PORT, () =>
-      console.log(`[qx] dashboard http://0.0.0.0:${cfg.PORT} (ws:/ws)`));
-    const wsServer = attachWs(server, { engine, rt, telegram: bot, metrics, feedsStatus });
+    const dashBoot = boot({
+      store: signalStore,
+      telegram: bot,
+      config: cfg,
+      engineStatus: () => ({
+        mode: rt.getExecution() ? 'live' : 'paper',
+        engine: 'apex-quant',
+        uptime_seconds: Math.round(process.uptime()),
+        ...feedsStatus(),
+        realtime: true,
+        exec: rt.getExecution()
+      }),
+      getConfidence: () => rt.getConfidence(),
+      setConfidence: (v) => rt.setConfidence(v),
+    });
+
+    const server = dashBoot.server;
+    const PORT = Number(cfg.PORT) || 10000;
+    
+    server.listen(PORT, () =>
+      console.log(`[qx] dashboard http://0.0.0.0:${PORT} (ws:/ws)`));
+      
+    // WebSocket এটাচ করা যা সরাসরি /api/status-এর ডেটা পুশ করবে
+    const wsServer = attachWS(server, { store: signalStore, statusPayload: dashBoot.statusPayload });
     global.__qxWs = wsServer;
   } else {
     console.warn('[qx] dashboard disabled');
@@ -82,11 +130,11 @@ async function main() {
     feeds.binance && feeds.binance.stop && feeds.binance.stop();
     feeds.fx && feeds.fx.stop && feeds.fx.stop();
     feeds.otc && feeds.otc.stop && feeds.otc.stop();
-    global.__qxWs && global.__qxWs.close();
-    if (bot) await bot.stop();
+    global.__qxWs && global.__qxWs.close && global.__qxWs.close();
     if (executor.stop) executor.stop();
     process.exit(code);
   };
+  
   process.on('SIGINT', () => shutdown(0));
   process.on('SIGTERM', () => shutdown(0));
   process.on('unhandledRejection', r => console.error('[qx] unhandledRejection', r));
