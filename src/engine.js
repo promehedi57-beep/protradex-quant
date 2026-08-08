@@ -1,127 +1,231 @@
 'use strict';
-const cfg = require('./config');
-const { CandleState } = require('./indicators');
-const { evaluate } = require('./rules');
 
-const BATCH = 40;
+/**
+ * src/engine.js
+ * Multi-TF quant pipeline core.
+ * Instruments: RSI, Z-Score, S/R, EMA slope, and TF confluence.
+ * Runs < ENGINE_BUDGET_MS per batch (parallel-ish via chunked _drain).
+ */
+
+const cfg = require('./config');
+const { Aggregator } = require('./aggregator');
+const { TFEngine } = require('./tf');
+const { IndicatorHub } = require('./indicators');
+const { computeConfidence } = require('./confidence');
+const rules = require('./rules');
+const rt = require('./state');
 
 class QuantEngine {
-  constructor({ signalBus, metrics }) {
+  constructor({ signalBus }) {
     this.signalBus = signalBus;
-    this.metrics = metrics;
-    this.states = new Map();          // symbol → CandleState
-    this.livePrices = new Map();      // symbol → সর্বশেষ টিক প্রাইস (in-progress ক্যান্ডেল)
-    this.lastSignals = new Map();     // symbol → সর্বশেষ best signal (dashboard-এর জন্য)
-    this.queue = [];
-    this.processing = false;
-    this.onCandle = null;
-    this.stats = { candles: 0, evaluations: 0, signals: 0, overBudget: 0, lastLatencyMs: 0 };
+    this.livePrices = new Map();        // symbol -> last live price
+    this.lastClose  = new Map();        // symbol -> last closed price
+    this.lastSignals = new Map();       // symbol -> last emitted signal
+    this.signalsTotal = 0;
+    this.lastCandleAt = null;           // Track last 1m bar arrival time
+
+    this.agg  = new Aggregator({ onBar: (b) => this.on1mBar(b) });
+    this.tf   = new TFEngine({ onCandle: (sym, tf, c) => this.onTFCandle(sym, tf, c) });
+    this.hub  = new IndicatorHub();
+    this.pairs = new Map();             // symbol -> {universe:'crypto'|'otc'|'fx', lastSignal}
+
+    this._startedAt = Date.now();
+    this._budget = cfg.ENGINE_BUDGET_MS || 50;
+    this._queue = [];                   // pending symbols for budgeted drain
   }
 
-  _state(symbol) {
-    let st = this.states.get(symbol);
-    if (!st) {
-      st = new CandleState({
-        symbol,
-        rsiPeriod: cfg.RSI_PERIOD, zscorePeriod: cfg.ZSCORE_PERIOD,
-        donchianPeriod: cfg.DONCHIAN_PERIOD, adxPeriod: cfg.ADX_PERIOD,
-        atrPeriod: cfg.ATR_PERIOD, emaFast: cfg.EMA_FAST, emaSlow: cfg.EMA_SLOW,
-        macdFast: cfg.MACD_FAST, macdSlow: cfg.MACD_SLOW, macdSignal: cfg.MACD_SIGNAL
-      });
-      this.states.set(symbol, st);
+  /* ── ingestion ── */
+  onTickFeed(t) {                       // called by OTC + Binance + OANDA
+    this.agg.push(t);
+  }
+
+  on1mBar(bar) {
+    this.lastCandleAt = Date.now();     // ✅ Set timestamp when a 1m candle arrives
+    this.lastClose.set(bar.symbol, bar.c);
+    
+    if (!this.pairs.has(bar.symbol)) {
+      this.pairs.set(bar.symbol, { universe: this._guessUniverse(bar.symbol), lastSignal: null });
     }
-    return st;
+    
+    this.hub.pushClose(bar.symbol, cfg.ACTIVE_TIMEFRAME, bar.c);   // S/R + active-TF
+    this.hub.srFor(bar.symbol).pushClose(bar.c);
+    this.hub.cleanup([...this.pairs.keys()]);
+    this.tf.push(bar.symbol, bar);                                  // fold into multi-TF
+    this._enqueue(bar.symbol);
   }
 
-  /** ফিড থেকে চলমান (আনক্লোজড) ক্যান্ডেলের দাম — dashboard-এ live price */
-  onLivePrice(symbol, price) {
-    if (Number.isFinite(price)) this.livePrices.set(symbol, price);
+  onTFCandle(symbol, tf, candle) {
+    // incremental indicators per (symbol × tf)
+    this.hub.pushClose(symbol, tf, candle.c);
   }
 
-  /** ফিড থেকে শুধু CLOSED ক্যান্ডেল */
-  onClosedCandle(symbol, candle) {
-    try {
-      const st = this._state(symbol);
-      st.update(candle);
-      this.stats.candles++;
-      if (this.onCandle) this.onCandle(symbol);
-      this.queue.push(symbol);
-      this._drain();
-    } catch (e) {
-      console.error('[engine] onClosedCandle error', symbol, e.message);
+  _guessUniverse(sym) {
+    const s = String(sym).toUpperCase();
+    if (s.endsWith('_OTC')) return 'otc';
+    if (/(USD|EUR|GBP|JPY|CHF|CAD|AUD|NZD|XAU|XAG)/.test(s) && s.includes('_')) return 'fx';
+    return 'crypto';
+  }
+
+  handleLivePrice(symbol, price) { 
+    this.livePrices.set(symbol, price); 
+  }
+
+  _enqueue(sym) { 
+    if (!this._queue.includes(sym)) {
+      this._queue.push(sym); 
     }
   }
 
-  /** বুটে REST হিটরি সিডিং (ওয়ার্ম-আপ) */
-  seedHistory(symbol, candles) {
-    if (!Array.isArray(candles) || !candles.length) return;
-    const st = this._state(symbol);
-    for (const c of candles) {
-      if (c && Number.isFinite(c.close) && Number.isFinite(c.high) && Number.isFinite(c.low)) st.update(c);
-    }
-    this.stats.candles += candles.length;
-    // বুট হওয়ার পরেই যাতে কিউতে জমে যায়
-    this.queue.push(symbol);
-    this._drain();
-  }
-
+  /* ── budgeted evaluation: < ENGINE_BUDGET_MS per burst ── */
   _drain() {
-    if (this.processing) return;
-    this.processing = true;
-    const start = Date.now();
-    const step = () => {
-      const batch = this.queue.splice(0, BATCH);
-      for (const sym of batch) {
-        const st = this.states.get(sym);
-        // ready চেক তুলে দেওয়া হয়েছে যাতে কম ডাটাতেই বা সাথে সাথে কাজ করে
-        if (!st || !st.snap) continue;
-        const t0 = Date.now();
-        this.stats.evaluations++;
-        try {
-          const sig = evaluate(st.snap);
-          if (sig) {
-            this.stats.signals++;
-            this.lastSignals.set(sym, sig);
-            this.signalBus.emit(sig);
-          }
-        } catch (e) {
-          console.error('[engine] evaluate error', sym, e.message);
-        }
-        this.stats.lastLatencyMs = Date.now() - t0;
-        if (this.metrics) this.metrics.record(Date.now() - t0);
+    const until = Date.now() + this._budget;
+    while (this._queue.length > 0 && Date.now() < until) {
+      const sym = this._queue.shift();
+      try { 
+        this._evaluate(sym); 
+      } catch (e) { 
+        console.error(`[engine] eval ${sym}:`, e && e.message); 
       }
-      if (this.queue.length) {
-        if (Date.now() - start >= cfg.ENGINE_BUDGET_MS) {
-          this.stats.overBudget++;
-          setImmediate(step);
-        } else step();
-      } else this.processing = false;
-    };
-    step();
+    }
   }
 
-  /** dashboard + Telegram-এর জন্য per-pair snapshot */
-  getPairsSnapshot(limit = 20) {
+  pump() { 
+    this._drain(); 
+  }
+
+  _evaluate(symbol) {
+    const snapshot = this._snapshot(symbol);
+    
+    // Safety check: skip if indicators are not warmed up yet
+    if (!snapshot.ready) { 
+      return; 
+    }
+
+    const rule = rules.evaluate(symbol, snapshot);
+    if (!rule) { 
+      return; 
+    }
+
+    if (rule.confidence >= rt.getConfidence()) {
+      const lastSig = this.lastSignals.get(symbol);
+      const isNew = !lastSig || 
+                    lastSig.sig !== rule.sig || 
+                    (Date.now() - (lastSig.t || 0)) > cfg.SIGNAL_COOLDOWN_MS;
+
+      rule.engineAt = Date.now(); 
+      rule.symbol = symbol; 
+      rule.price = snapshot.price;
+
+      if (isNew) {
+        this.lastSignals.set(symbol, { sig: rule.sig, t: Date.now() });
+        this.signalsTotal++;
+        
+        const pairData = this.pairs.get(symbol);
+        if (pairData) pairData.lastSignal = rule;
+
+        try { 
+          this.signalBus.publish('signal', rule); 
+        } catch (e) { 
+          console.error('[engine] bus publish error:', e.message); 
+        }
+      }
+    }
+  }
+
+  _snapshot(symbol) {
+    const tfA = cfg.ACTIVE_TIMEFRAME;
+    const s = this.hub.snapshot(symbol, tfA);
+    const sr = this.hub.srFor(symbol).hit(
+      s.livePrice ?? s.lastPrice ?? this.lastClose.get(symbol), 
+      s.sloped ? 'up' : 'down'
+    );
+    const price = this.livePrices.get(symbol) ?? this.lastClose.get(symbol) ?? null;
+
+    // TF confluence votes
+    const tfVotes = (cfg.TIMEFRAMES || []).map(tf => {
+      const snap = this.hub.snapshot(symbol, tf);
+      return { tf, direction: snap.sloped ? 'up' : 'down', score: snap.rsi ?? 50, ready: snap.ready };
+    });
+
+    // candidate direction from active-TF Z-Score
+    let direction = 'flat';
+    if (s.zscore <= -1) direction = 'up';
+    else if (s.zscore >= 1) direction = 'down';
+
+    const confidence = computeConfidence({
+      fastRsi: s.rsi, 
+      slowRsi: this.hub.snapshot(symbol, Math.min(20, (cfg.TIMEFRAMES[cfg.TIMEFRAMES.length-1]||20))).rsi,
+      zscore: s.zscore, 
+      srHit: sr, 
+      tfSignals: tfVotes, 
+      direction,
+    });
+
+    return {
+      symbol, 
+      price, 
+      ready: s.ready,
+      rsi: s.rsi, 
+      zscore: s.zscore, 
+      slope: s.sloped ? 1 : -1,
+      sr: { level: sr.type === 'none' ? null : srLevelHere(sr, this.hub, symbol), kind: sr.kind, type: sr.type },
+      confidence, 
+      direction,
+      live: price ?? null,
+    };
+  }
+
+  /* ── dashboard / API snapshot ── */
+  getPairsSnapshot(limit = 24) {
     const out = [];
-    for (const [sym, st] of this.states) {
-      if (!st || !st.snap) continue;
-      const lastSig = this.lastSignals.get(sym);
+    for (const [sym, meta] of this.pairs) {
+      const s = this.hub.snapshot(sym, cfg.ACTIVE_TIMEFRAME);
+      const price = this.livePrices.get(sym) ?? this.lastClose.get(sym);
+      if (price == null) continue;
+
       out.push({
         symbol: sym,
-        price: this.livePrices.get(sym) ?? st.snap.lastClose ?? 0,
-        rsi: st.snap.rsi ?? 50,
-        adx: st.snap.adx ? st.snap.adx.adx : null,
-        zscore: st.snap.zscore ?? 0,
-        slope: st.snap.slope ?? 0,
-        confidence: lastSig ? lastSig.confidence : (Math.floor(Math.random() * 20) + 65), // টেস্টের জন্য ডিফল্ট ভ্যালু যাতে জিরো না দেখায়
-        direction: lastSig ? lastSig.direction : (Math.random() > 0.5 ? 'CALL' : 'PUT')
+        price: price,
+        change: 0,                       // 24h % — computed in feed layer
+        rsi: s.rsi,
+        zscore: s.zscore,
+        slope: s.sloped ? 'up' : 'down',
+        confidence: s.ready ? s.rsi : 0,
+        direction: s.sloped ? 'CALL' : 'PUT',
+        signal: meta.lastSignal?.sig || 'NEUTRAL',
+        universe: meta.universe,
       });
     }
-    out.sort((a, b) => (b.confidence - a.confidence) || (b.price - a.price));
+    out.sort((a, b) => (b.confidence - a.confidence));
     return out.slice(0, limit);
   }
 
-  status() { return { ...this.stats, pairs: this.states.size }; }
+  status() {
+    return {
+      uptime: Math.floor((Date.now() - this._startedAt) / 1000),
+      pairs: this._pairsCount(),
+      signals_total: this.signalsTotal,
+      execution: rt.getExecution(),
+      timeframe: cfg.ACTIVE_TIMEFRAME,
+      tfs: cfg.TIMEFRAMES,
+      lastCandleAt: this.lastCandleAt,
+    };
+  }
+
+  _pairsCount() { 
+    return this.pairs.size; 
+  }
+
+  /* live price for dashboard latency */
+  onLivePrice(symbol, price) { 
+    this.handleLivePrice(symbol, price); 
+  }
+}
+
+function srLevelHere(sr, hub, symbol) {
+  const lvl = (sr.type === 'resistance') ? hub.srFor(symbol).resistance
+            : (sr.type === 'support')    ? hub.srFor(symbol).support  : null;
+  return lvl ? lvl.price : null;
 }
 
 module.exports = { QuantEngine };
