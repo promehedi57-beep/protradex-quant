@@ -7,7 +7,8 @@
  * Emits the same contract as Binance: onTick({symbol, price}).
  */
 
-const cfg = require('./config');
+const cfg = require('../config');
+
 
 class OTCSimFeed {
   /**
