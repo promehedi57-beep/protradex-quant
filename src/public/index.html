@@ -1,259 +1,1053 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ProTradeX · Quantum Terminal</title>
-<script src="https://cdn.tailwindcss.com"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>APEX//QUANT — Real-time Signal Terminal</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+
+<!-- Fonts: Space Grotesk (display) · Manrope (body) · IBM Plex Mono (data) -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: { extend: {
+    colors: {
+      ink:'#05070b', panel:'#0a101a', panel2:'#0d1522', line:'#16202f', line2:'#1f2d40',
+      ion:'#4ee1ff', call:'#0fe39b', put:'#ff3b5c', otc:'#ffb224', muted:'#5f7189', paper:'#e8eef6'
+    },
+    fontFamily: {
+      display:['"Space Grotesk"','sans-serif'],
+      body:['Manrope','sans-serif'],
+      mono:['"IBM Plex Mono"','monospace']
+    }
+  }}
+}
+</script>
+
+<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+
 <style>
-:root{color-scheme:dark}
-body{background:#020617;font-family:'Space Grotesk',sans-serif}
-.mono{font-family:'JetBrains Mono',monospace}
-.panel{background:linear-gradient(180deg,rgba(30,41,59,.5),rgba(15,23,42,.72));border:1px solid #1e293b;border-radius:12px}
-.num{font-variant-numeric:tabular-nums}
-::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:#1e293b;border-radius:8px}
-.sidebar{transition:transform .25s ease;transform:translateX(-100%)}
-.sidebar.open{transform:translateX(0)}
-@keyframes fup{0%{background:rgba(16,185,129,.22)}100%{background:transparent}}
-@keyframes fdn{0%{background:rgba(244,63,94,.22)}100%{background:transparent}}
-.fup{animation:fup .8s ease-out}.fdn{animation:fdn .8s ease-out}
-@keyframes ping{0%{box-shadow:0 0 0 0 rgba(52,211,153,.5)}75%,100%{box-shadow:0 0 0 6px rgba(52,211,153,0)}}
-.dot-live{animation:ping 2.2s cubic-bezier(0,0,.2,1) infinite}
+  html{color-scheme:dark;scroll-behavior:smooth}
+  body{background:#05070b}
+  ::selection{background:rgba(78,225,255,.25)}
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-track{background:#070b12}
+  ::-webkit-scrollbar-thumb{background:#1c2938;border-radius:6px;border:2px solid #070b12}
+  ::-webkit-scrollbar-thumb:hover{background:#2a3c54}
+
+  /* ambient layers */
+  .bg-grid{background-image:linear-gradient(rgba(78,225,255,.028) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(78,225,255,.028) 1px,transparent 1px);background-size:46px 46px}
+  .vignette{background:radial-gradient(1100px 520px at 18% -8%,rgba(78,225,255,.055),transparent 60%),
+    radial-gradient(900px 480px at 100% 0%,rgba(15,227,155,.04),transparent 55%),
+    radial-gradient(800px 600px at 50% 120%,rgba(255,59,92,.035),transparent 60%)}
+  .noise{position:fixed;inset:0;z-index:60;pointer-events:none;opacity:.05;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E")}
+
+  .panel{position:relative;background:linear-gradient(180deg,#0b1220 0%,#090f19 100%);
+    border:1px solid #16202f;border-radius:12px}
+  .corners::before,.corners::after{content:'';position:absolute;width:13px;height:13px;pointer-events:none}
+  .corners::before{top:-1px;left:-1px;border-top:1px solid rgba(78,225,255,.5);border-left:1px solid rgba(78,225,255,.5)}
+  .corners::after{bottom:-1px;right:-1px;border-bottom:1px solid rgba(78,225,255,.5);border-right:1px solid rgba(78,225,255,.5)}
+
+  .sec-label{font-family:'Space Grotesk';letter-spacing:.22em;font-size:11px;color:#7e93ab;text-transform:uppercase}
+  .sec-label b{color:#4ee1ff;font-weight:700}
+
+  /* ── signal cards ─────────────────────────── */
+  .sig{position:relative;background:linear-gradient(180deg,#0c1421,#090f19);border:1px solid #182435;
+    border-radius:12px;overflow:hidden;transition:transform .18s ease,border-color .18s,box-shadow .25s;cursor:pointer}
+  .sig:hover{transform:translateY(-2px)}
+  .sig::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
+  .sig.call{border-color:rgba(15,227,155,.32)}
+  .sig.call::before{background:linear-gradient(180deg,#0fe39b,transparent)}
+  .sig.call:hover,.sig.sel.call{box-shadow:0 0 30px -6px rgba(15,227,155,.35);border-color:rgba(15,227,155,.65)}
+  .sig.put{border-color:rgba(255,59,92,.32)}
+  .sig.put::before{background:linear-gradient(180deg,#ff3b5c,transparent)}
+  .sig.put:hover,.sig.sel.put{box-shadow:0 0 30px -6px rgba(255,59,92,.35);border-color:rgba(255,59,92,.65)}
+  .sig.sel{outline:1px solid rgba(78,225,255,.5);outline-offset:2px}
+  .sig.enter{animation:sigIn .5s cubic-bezier(.2,.9,.25,1.15) both}
+  @keyframes sigIn{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:none}}
+  .sig.leaving{opacity:0;transform:scale(.95);transition:all .3s ease}
+
+  .dchip{display:inline-flex;align-items:center;gap:5px;font-family:'Space Grotesk';font-weight:700;
+    letter-spacing:.14em;font-size:12px;padding:4px 12px;border-radius:6px}
+  .dchip.call{color:#0fe39b;background:rgba(15,227,155,.1);border:1px solid rgba(15,227,155,.45);
+    text-shadow:0 0 12px rgba(15,227,155,.7);animation:chipPulseG 2.4s ease-in-out infinite}
+  .dchip.put{color:#ff3b5c;background:rgba(255,59,92,.1);border:1px solid rgba(255,59,92,.45);
+    text-shadow:0 0 12px rgba(255,59,92,.7);animation:chipPulseR 2.4s ease-in-out infinite}
+  @keyframes chipPulseG{50%{box-shadow:0 0 16px -2px rgba(15,227,155,.55)}}
+  @keyframes chipPulseR{50%{box-shadow:0 0 16px -2px rgba(255,59,92,.55)}}
+
+  .badge{font-family:'IBM Plex Mono';font-size:9px;letter-spacing:.14em;padding:2px 7px;border-radius:4px;font-weight:600}
+  .badge.crypto{color:#4ee1ff;background:rgba(78,225,255,.08);border:1px solid rgba(78,225,255,.3)}
+  .badge.otc{color:#ffb224;background:rgba(255,178,36,.08);border:1px solid rgba(255,178,36,.35)}
+
+  .stamp{position:absolute;right:12px;top:40px;font-family:'Space Grotesk';font-weight:700;font-size:24px;
+    letter-spacing:.1em;transform:rotate(-10deg);padding:2px 14px;border-radius:6px;pointer-events:none;z-index:5}
+  .stamp.win{color:#0fe39b;border:2px solid #0fe39b;background:rgba(15,227,155,.08);box-shadow:0 0 22px -4px rgba(15,227,155,.5)}
+  .stamp.loss{color:#ff3b5c;border:2px solid #ff3b5c;background:rgba(255,59,92,.08);box-shadow:0 0 22px -4px rgba(255,59,92,.5)}
+  .sig.closed{opacity:.82}
+
+  /* value flash */
+  @keyframes flashG{0%{background:rgba(15,227,155,.3)}100%{background:transparent}}
+  @keyframes flashR{0%{background:rgba(255,59,92,.3)}100%{background:transparent}}
+  .fu{animation:flashG .7s ease-out}.fd{animation:flashR .7s ease-out}
+
+  /* buttons */
+  .btn-tg{position:relative;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;gap:7px;
+    width:100%;font-family:'Space Grotesk';font-weight:600;font-size:11px;letter-spacing:.1em;
+    color:#a8ecff;background:rgba(78,225,255,.06);border:1px solid rgba(78,225,255,.32);
+    border-radius:8px;padding:8px 10px;transition:all .18s}
+  .btn-tg:hover:not(:disabled){background:rgba(78,225,255,.15);border-color:rgba(78,225,255,.7);
+    box-shadow:0 0 18px -4px rgba(78,225,255,.45);transform:translateY(-1px)}
+  .btn-tg:disabled{opacity:.6;cursor:wait}
+  .btn-tg.sent{color:#0fe39b;border-color:rgba(15,227,155,.5);background:rgba(15,227,155,.08)}
+  .btn-ghost{border:1px solid #1f2d40;border-radius:8px;color:#7e93ab;padding:8px 10px;transition:all .18s}
+  .btn-ghost:hover{color:#e8eef6;border-color:#33465f;background:#101a29}
+
+  /* tabs */
+  .tab{font-family:'Space Grotesk';font-size:11px;letter-spacing:.12em;font-weight:600;color:#7e93ab;
+    padding:7px 14px;border:1px solid transparent;border-radius:8px;transition:all .18s;white-space:nowrap}
+  .tab:hover{color:#c9d7e8}
+  .tab.on{color:#4ee1ff;border-color:rgba(78,225,255,.4);background:rgba(78,225,255,.07);
+    box-shadow:inset 0 0 14px -6px rgba(78,225,255,.4)}
+
+  /* ticker */
+  .ticker-mask{overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent);
+    mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent)}
+  .ticker-track{display:flex;width:max-content;animation:marquee 48s linear infinite}
+  .ticker-mask:hover .ticker-track{animation-play-state:paused}
+  @keyframes marquee{to{transform:translateX(-50%)}}
+
+  /* dots & chips */
+  .dot{width:7px;height:7px;border-radius:99px;flex:none}
+  .dot.live{background:#0fe39b;box-shadow:0 0 8px #0fe39b;animation:blink 1.6s ease-in-out infinite}
+  .dot.warn{background:#ffb224;box-shadow:0 0 8px #ffb224;animation:blink .8s ease-in-out infinite}
+  .dot.off{background:#ff3b5c;box-shadow:0 0 8px rgba(255,59,92,.7)}
+  .dot.sim{background:#ffb224;box-shadow:0 0 8px #ffb224}
+  @keyframes blink{50%{opacity:.35}}
+
+  /* range slider */
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:4px;outline:none;
+    background:linear-gradient(90deg,#4ee1ff var(--fill,50%),#1b2a3d var(--fill,50%))}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;
+    background:#0a101a;border:2px solid #4ee1ff;box-shadow:0 0 12px rgba(78,225,255,.6);cursor:pointer;transition:transform .15s}
+  input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2)}
+  input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#0a101a;
+    border:2px solid #4ee1ff;box-shadow:0 0 12px rgba(78,225,255,.6);cursor:pointer}
+
+  /* toggle */
+  .tgl{position:relative;width:44px;height:23px;border-radius:99px;background:#141f30;border:1px solid #24344b;
+    transition:all .2s;cursor:pointer;flex:none}
+  .tgl::after{content:'';position:absolute;top:2px;left:2px;width:17px;height:17px;border-radius:50%;
+    background:#5f7189;transition:all .22s cubic-bezier(.3,1.4,.5,1)}
+  input:checked + .tgl{background:rgba(15,227,155,.14);border-color:rgba(15,227,155,.55)}
+  input:checked + .tgl::after{left:23px;background:#0fe39b;box-shadow:0 0 10px rgba(15,227,155,.8)}
+
+  /* toasts */
+  .toast{pointer-events:auto;display:flex;gap:10px;align-items:flex-start;width:min(340px,calc(100vw-32px));
+    background:rgba(11,18,30,.96);backdrop-filter:blur(6px);border:1px solid #22334a;border-radius:10px;
+    padding:11px 13px;position:relative;overflow:hidden;transform:translateX(28px);opacity:0;
+    transition:all .32s cubic-bezier(.2,.9,.3,1.1);box-shadow:0 12px 34px -12px rgba(0,0,0,.7)}
+  .toast.show{transform:none;opacity:1}
+  .toast .bar{position:absolute;left:0;bottom:0;height:2px;animation:barRun linear forwards}
+  @keyframes barRun{from{width:100%}to{width:0}}
+
+  /* radar empty state */
+  .radar{position:relative;width:110px;height:110px;border-radius:50%;border:1px solid #1e2c40;
+    background:radial-gradient(circle,rgba(78,225,255,.05),transparent 70%)}
+  .radar::before{content:'';position:absolute;inset:0;border-radius:50%;
+    background:conic-gradient(from 0deg,transparent 0 78%,rgba(78,225,255,.5));animation:spin 2.6s linear infinite}
+  .radar::after{content:'';position:absolute;inset:28%;border-radius:50%;border:1px dashed #22334a}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .hist-item{animation:sigIn .4s ease both}
+  .kbd{font-family:'IBM Plex Mono';font-size:9px;color:#5f7189;border:1px solid #22334a;border-radius:4px;padding:1px 5px}
+  .rsi-track{height:3px;background:#16222f;border-radius:2px;overflow:hidden}
+  .ring-num{font-family:'IBM Plex Mono';font-weight:700}
+  select,input[type=text]{background:#0b1420;border:1px solid #1f2d40;color:#c9d7e8;border-radius:8px;outline:none}
+  select:focus,input[type=text]:focus{border-color:rgba(78,225,255,.5)}
+
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{animation-duration:.001s !important;animation-iteration-count:1 !important;transition-duration:.001s !important}
+    .ticker-track{animation:none}
+  }
 </style>
 </head>
-<body class="min-h-screen text-slate-300 antialiased">
 
-<!-- ── Header ── -->
-<header class="sticky top-0 z-40 border-b border-slate-800 bg-slate-950/90 backdrop-blur">
-  <div class="mx-auto flex max-w-[1600px] items-center gap-4 px-4 py-3">
-    <button id="menuBtn" class="grid h-9 w-9 place-items-center rounded border border-slate-700 hover:border-emerald-400/60" title="Menu">
-      <span class="flex flex-col gap-[5px]"><i class="h-0.5 w-4 bg-slate-300"></i><i class="h-0.5 w-4 bg-slate-300"></i><i class="h-0.5 w-4 bg-slate-300"></i></span>
-    </button>
-    <div>
-      <h1 class="text-base font-bold tracking-[.18em] text-slate-100">PROTRADE<span class="text-emerald-400">X</span></h1>
-      <p class="mono text-[10px] tracking-[.2em] text-slate-500">QUANTUM BINARY ENGINE · v5</p>
+<body class="bg-ink text-paper font-body antialiased min-h-screen">
+<div class="noise"></div>
+<div class="fixed inset-0 bg-grid pointer-events-none"></div>
+<div class="fixed inset-0 vignette pointer-events-none"></div>
+
+<!-- ═══════════════ TOP COMMAND BAR ═══════════════ -->
+<header class="relative z-10 border-b border-line bg-[#070b12]/90 backdrop-blur-sm">
+  <div class="max-w-[1560px] mx-auto px-4 lg:px-6 h-[62px] flex items-center gap-4">
+    <!-- brand -->
+    <div class="flex items-center gap-3 flex-none">
+      <svg width="34" height="34" viewBox="0 0 34 34" fill="none" class="flex-none">
+        <rect x="1" y="1" width="32" height="32" rx="7" stroke="#4ee1ff" stroke-opacity=".45"/>
+        <path d="M8 22 L14 13 L18 18 L26 9" stroke="#0fe39b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M22 9 h4 v4" stroke="#0fe39b" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="8" cy="22" r="1.8" fill="#ff3b5c"/>
+      </svg>
+      <div class="leading-none">
+        <div class="font-display font-bold text-[17px] tracking-wide decode" data-text="APEX//QUANT">APEX//QUANT</div>
+        <div class="font-mono text-[9px] text-muted tracking-[.28em] mt-1">SIGNAL&nbsp;ENGINE&nbsp;·&nbsp;v2.4.1</div>
+      </div>
     </div>
-    <div class="ml-auto flex flex-wrap items-center gap-2 mono text-[11px]">
-      <span id="gemBtn" class="cursor-pointer rounded border border-violet-400/40 bg-violet-400/10 px-2.5 py-1 text-violet-300 hover:bg-violet-400/20">⚡ AI KEY</span>
-      <span class="rounded border border-slate-700 px-2.5 py-1"><span id="binDot" class="mr-1 inline-block h-2 w-2 rounded-full bg-slate-600"></span>BIN</span>
-      <span class="rounded border border-slate-700 px-2.5 py-1"><span id="fxDot" class="mr-1 inline-block h-2 w-2 rounded-full bg-slate-600"></span>FX</span>
-      <span class="rounded border border-slate-700 px-2.5 py-1"><span id="otcDot" class="mr-1 inline-block h-2 w-2 rounded-full bg-slate-600"></span>OTC</span>
-      <span class="rounded border border-slate-700 px-2.5 py-1">SIG <b id="sigT" class="num text-emerald-300">0</b></span>
-      <span class="hidden md:inline-block rounded border border-slate-700 px-2.5 py-1"><b id="upT" class="num">—</b>s</span>
+
+    <div class="hidden md:block h-7 w-px bg-line2"></div>
+
+    <!-- feed status -->
+    <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-line bg-panel">
+      <span id="connDot" class="dot warn"></span>
+      <span id="connLabel" class="font-mono text-[10px] tracking-[.18em] text-otc">CONNECTING</span>
+      <span class="text-line2">|</span>
+      <span class="font-mono text-[10px] text-muted">PING <b id="latVal" class="text-paper font-semibold">--</b> ms</span>
+    </div>
+
+    <div class="flex-1"></div>
+
+    <!-- session stats -->
+    <div class="hidden lg:flex items-center gap-5 font-mono text-[11px]">
+      <div class="text-right"><div class="text-muted text-[9px] tracking-[.2em]">SIGNALS</div><div id="stSignals" class="font-semibold text-paper">0</div></div>
+      <div class="text-right"><div class="text-muted text-[9px] tracking-[.2em]">WIN&nbsp;RATE</div><div id="stWinrate" class="font-semibold text-call">--%</div></div>
+      <div class="text-right"><div class="text-muted text-[9px] tracking-[.2em]">STREAK</div><div id="stStreak" class="font-semibold text-paper">—</div></div>
+    </div>
+
+    <div class="hidden md:block h-7 w-px bg-line2"></div>
+    <div class="font-mono text-[12px] text-ion tracking-widest flex-none">
+      <span id="utcClock">--:--:--</span><span class="text-muted text-[9px]"> UTC</span>
     </div>
   </div>
 </header>
 
-<!-- ── Sidebar ── -->
-<nav id="sidebar" class="sidebar fixed left-0 top-0 z-50 h-full w-72 border-r border-slate-800 bg-slate-950/95 p-4 backdrop-blur">
-  <div class="flex items-center justify-between"><span class="mono text-xs tracking-widest text-slate-400">NAVIGATION</span>
-    <button id="closeMenu" class="rounded border border-slate-700 px-2 py-1 text-slate-400 hover:text-rose-300">✕</button></div>
-  <div class="mt-5 space-y-1.5 text-sm">
-    <a data-view="quotex" class="nav-item block rounded-lg border border-slate-800 p-3 text-slate-200 hover:border-emerald-400/50 hover:bg-slate-800/40">① Quotex Live Trading</a>
-    <a data-view="pocket" class="nav-item block rounded-lg border border-slate-800 p-3 text-slate-200 hover:border-emerald-400/50 hover:bg-slate-800/40">② Pocket Option Live Trading</a>
-    <a data-view="ai" class="nav-item block rounded-lg border border-slate-800 p-3 text-slate-200 hover:border-emerald-400/50 hover:bg-slate-800/40">③ Chart Analyzer &amp; AI Scanner</a>
-    <a data-view="strategy" class="nav-item block rounded-lg border border-slate-800 p-3 text-slate-200 hover:border-emerald-400/50 hover:bg-slate-800/40">④ Custom Strategy Rules</a>
-    <a data-view="telegram" class="nav-item block rounded-lg border border-slate-800 p-3 text-slate-200 hover:border-emerald-400/50 hover:bg-slate-800/40">⑤ Telegram Alert Manager</a>
-  </div>
-  <div class="absolute bottom-4 left-4 right-4 mono text-[10px] text-slate-600">build 5.0 · © 2026</div>
-</nav>
-<div id="scrim" class="fixed inset-0 z-40 hidden bg-black/50"></div>
-
-<main class="mx-auto max-w-[1600px] px-4 py-5">
-  <!-- ── View: Trading ── -->
-  <section id="view-trading" class="view">
-    <div class="mb-3 flex flex-wrap items-center gap-2">
-      <div class="flex gap-2 mono text-xs">
-        <button data-market="real" class="mk-tab rounded border border-emerald-400/50 bg-emerald-400/10 px-3 py-1.5 text-emerald-300">REAL MARKET</button>
-        <button data-market="otc" class="mk-tab rounded border border-slate-700 px-3 py-1.5 text-slate-400">OTC MARKET</button>
-      </div>
-      <select id="tfSel" class="mono rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200">
-        <option value="1">1m</option><option value="5">5m</option><option value="10">10m</option><option value="15" selected>15m</option>
-      </select>
-      <span id="brokerTag" class="mono text-xs text-slate-500">Broker: Binance</span>
-    </div>
-
-    <!-- Candle tracker -->
-    <div class="panel mb-4 p-4">
-      <div class="flex items-center justify-between"><h3 class="mono text-xs tracking-widest text-slate-400">ACTIVE CANDLE TRACKER</h3>
-        <span id="candleSym" class="mono text-sm font-bold text-slate-100">BTCUSDT</span></div>
-      <div class="mt-3 grid grid-cols-2 gap-3 md:grid-cols-5 mono text-[11px]">
-        <div class="rounded border border-slate-800 p-2"><div class="text-slate-500">Open</div><b id="cdO" class="num text-slate-200">—</b></div>
-        <div class="rounded border border-slate-800 p-2"><div class="text-slate-500">Price</div><b id="cdP" class="num text-slate-100">—</b></div>
-        <div class="rounded border border-slate-800 p-2"><div class="text-slate-500">Index</div><b id="cdI" class="num text-cyan-300">—</b></div>
-        <div class="rounded border border-slate-800 p-2"><div class="text-slate-500">Remaining</div><b id="cdR" class="num text-amber-300">—</b></div>
-        <div class="rounded border border-slate-800 p-2"><div class="text-slate-500">Trend</div><b id="cdD" class="text-slate-400">—</b></div>
-      </div>
-      <div class="mt-3 h-1 overflow-hidden rounded-full bg-slate-800"><div id="cdProg" class="h-full bg-emerald-400 transition-all duration-1000"></div></div>
-      <div class="mt-3 mono text-[11px] text-slate-500">Next signal: <span id="nextSig" class="font-bold text-emerald-400">CALL</span>
-        · Entry <b id="nextEntry" class="num text-slate-200">—</b> · Expiry <b id="nextExp" class="num">15m</b> · Conf <b id="nextConf" class="num text-violet-300">—%</b></div>
-    </div>
-
-    <!-- Market table -->
-    <div class="panel overflow-hidden">
-      <div class="max-h-[520px] overflow-auto">
-        <table class="w-full min-w-[820px] text-left text-xs">
-          <thead class="mono text-[10px] text-slate-500"><tr class="border-b border-slate-800">
-            <th class="px-3 py-2.5">PAIR</th><th class="px-3 py-2.5 text-right">LAST</th>
-            <th class="px-3 py-2.5 text-right">RSI</th><th class="px-3 py-2.5 text-right">Z</th>
-            <th class="px-3 py-2.5">SIGNAL</th><th class="px-3 py-2.5 text-right">CONF</th>
-            <th class="px-3 py-2.5 text-right">TF</th><th class="px-3 py-2.5"></th></tr></thead>
-          <tbody id="tblBody" class="mono"></tbody>
-        </table>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── View: AI Scanner ── -->
-  <section id="view-ai" class="view hidden">
-    <div class="grid gap-4 lg:grid-cols-2">
-      <div class="panel p-4">
-        <h3 class="mono text-xs tracking-widest text-slate-400">DATA-BASED AI ANALYSIS</h3>
-        <p class="mt-1 mono text-[10px] text-slate-600">Feeds last 50 candles (OHLCV text) to Gemini — isolated, never blocks signals.</p>
-        <div class="mt-3 flex gap-2">
-          <input id="aiSym" class="mono flex-1 rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm" placeholder="BTCUSDT">
-          <button id="aiScan" class="rounded border border-violet-400/50 bg-violet-400/10 px-4 py-2 mono text-xs text-violet-300 hover:bg-violet-400/20">SCAN</button>
-        </div>
-        <pre id="aiResult" class="mt-3 max-h-72 overflow-auto rounded border border-slate-800 bg-slate-950/70 p-3 mono text-[11px] text-slate-300"></pre>
-      </div>
-      <div class="panel p-4">
-        <h3 class="mono text-xs tracking-widest text-slate-400">VISION AI — CHART UPLOAD</h3>
-        <div id="drop" class="mt-3 grid h-56 place-items-center rounded border-2 border-dashed border-slate-700 text-center mono text-xs text-slate-500 hover:border-violet-400/50">
-          Drag &amp; drop a chart screenshot<br>or click to browse
-        </div>
-        <input id="fileInput" type="file" accept="image/*" class="hidden">
-        <pre id="visionResult" class="mt-3 max-h-60 overflow-auto rounded border border-slate-800 bg-slate-950/70 p-3 mono text-[11px] text-slate-300"></pre>
-      </div>
-    </div>
-    <div id="aiError" class="mt-3 hidden rounded border border-rose-500/40 bg-rose-500/10 p-3 mono text-xs text-rose-300"></div>
-  </section>
-
-  <!-- ── View: Strategy ── -->
-  <section id="view-strategy" class="view hidden">
-    <div class="panel max-w-2xl p-5">
-      <h3 class="mono text-xs tracking-widest text-slate-400">CUSTOM STRATEGY RULES (live-applied)</h3>
-      <div class="mt-4 grid grid-cols-2 gap-4 mono text-xs">
-        <label class="block"><span class="text-slate-400">RSI Oversold (low)</span>
-          <input id="stRsiL" type="number" class="num w-full rounded border border-slate-700 bg-slate-950 px-2 py-2" value="30"></label>
-        <label class="block"><span class="text-slate-400">RSI Overbought (high)</span>
-          <input id="stRsiH" type="number" class="num w-full rounded border border-slate-700 bg-slate-950 px-2 py-2" value="70"></label>
-        <label class="block"><span class="text-slate-400">Z-Score sensitivity</span>
-          <input id="stZ" type="number" step="0.1" class="num w-full rounded border border-slate-700 bg-slate-950 px-2 py-2" value="2.0"></label>
-        <label class="block"><span class="text-slate-400">ADX trend strength</span>
-          <input id="stAdx" type="number" class="num w-full rounded border border-slate-700 bg-slate-950 px-2 py-2" value="25"></label>
-        <label class="block col-span-2"><span class="text-slate-400">S/R breakout margin (%)</span>
-          <input id="stSr" type="number" step="0.05" class="num w-full rounded border border-slate-700 bg-slate-950 px-2 py-2" value="0.15"></label>
-      </div>
-      <button id="stSave" class="mt-4 rounded border border-emerald-400/50 bg-emerald-400/10 px-4 py-2 mono text-xs text-emerald-300 hover:bg-emerald-400/20">APPLY RULES</button>
-    </div>
-  </section>
-
-  <!-- ── View: Telegram ── -->
-  <section id="view-telegram" class="view hidden">
-    <div class="panel max-w-2xl p-5">
-      <h3 class="mono text-xs tracking-widest text-slate-400">TELEGRAM ALERT MANAGER</h3>
-      <div class="mt-4 grid gap-3 mono text-xs">
-        <div class="flex items-center justify-between rounded border border-slate-800 p-3">
-          <span>Alerts enabled</span>
-          <button id="tgToggle" class="rounded border border-slate-600 px-3 py-1 text-slate-300">ON</button></div>
-        <div class="flex items-center justify-between rounded border border-slate-800 p-3">
-          <span>Broadcast to Group/Channel/Admin</span>
-          <span id="tgTargets" class="num text-slate-400">—</span></div>
-      </div>
-      <button id="tgTest" class="mt-4 rounded border border-sky-400/50 bg-sky-400/10 px-4 py-2 mono text-xs text-sky-300 hover:bg-sky-400/20">📤 SEND TEST ALERT</button>
-      <p id="tgMsg" class="mt-2 mono text-[11px] text-slate-500"></p>
-    </div>
-  </section>
-</main>
-
-<!-- ── Gemini Key Modal ── -->
-<div id="gemModal" class="fixed inset-0 z-50 hidden place-items-center bg-black/60">
-  <div class="panel w-[420px] p-6">
-    <h3 class="mono text-sm tracking-widest text-slate-200">GEMINI API KEY</h3>
-    <p class="mt-1 mono text-[10px] text-slate-600">Stored in memory only — never written to disk.</p>
-    <input id="gemKey" type="password" placeholder="AIza…" class="mt-3 w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 mono text-sm">
-    <div class="mt-4 flex gap-2">
-      <button id="gemSave" class="flex-1 rounded border border-violet-400/50 bg-violet-400/10 py-2 mono text-xs text-violet-300 hover:bg-violet-400/20">SAVE</button>
-      <button id="gemClear" class="rounded border border-slate-700 px-3 py-2 mono text-xs text-slate-400">CLEAR</button>
-      <button id="gemClose" class="rounded border border-slate-700 px-3 py-2 mono text-xs text-slate-400">✕</button>
-    </div>
-    <p id="gemStatus" class="mt-2 mono text-[10px] text-slate-500"></p>
+<!-- ═══════════════ TICKER TAPE ═══════════════ -->
+<div class="relative z-10 border-b border-line bg-[#060a10]">
+  <div class="ticker-mask py-[7px]">
+    <div id="tickerTrack" class="ticker-track gap-8 px-4 font-mono text-[11px]"></div>
   </div>
 </div>
 
-<div id="toast" class="pointer-events-none fixed bottom-5 right-5 z-50 rounded border border-slate-700 bg-slate-900/95 px-4 py-2.5 mono text-xs text-slate-200 opacity-0 transition"></div>
+<!-- ═══════════════ MAIN GRID ═══════════════ -->
+<main class="relative z-10 max-w-[1560px] mx-auto px-4 lg:px-6 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+  <!-- ─────── LEFT: SIGNAL MATRIX ─────── -->
+  <section class="lg:col-span-8 min-w-0">
+    <div class="flex flex-wrap items-end gap-3 mb-4">
+      <div>
+        <div class="sec-label decode" data-text="01 · SIGNAL MATRIX"><b>01</b> · SIGNAL MATRIX</div>
+        <div class="font-display text-[26px] font-bold leading-tight mt-1">Live Signals <span id="visCount" class="font-mono text-[13px] text-ion align-middle">[0]</span></div>
+      </div>
+      <div class="flex-1"></div>
+      <div class="flex items-center gap-2 flex-wrap">
+        <nav id="tabs" class="flex items-center gap-1.5 p-1 rounded-lg border border-line bg-panel">
+          <button class="tab on" data-tab="ALL">ALL <span class="opacity-60" data-c="ALL">0</span></button>
+          <button class="tab" data-tab="CRYPTO">CRYPTO <span class="opacity-60" data-c="CRYPTO">0</span></button>
+          <button class="tab" data-tab="OTC">OTC <span class="opacity-60" data-c="OTC">0</span></button>
+        </nav>
+        <input id="search" type="text" placeholder="SEARCH PAIR…" spellcheck="false"
+               class="w-[130px] px-3 py-[7px] font-mono text-[11px] tracking-wider placeholder:text-muted/60">
+      </div>
+    </div>
+
+    <div id="hiddenPill" class="hidden mb-3 font-mono text-[10px] tracking-wider text-otc border border-otc/30 bg-otc/5 rounded-md px-3 py-1.5 w-max">
+      ⚠ <span id="hiddenN">0</span> SIGNAL(S) BELOW THRESHOLD — ADJUST IN SETTINGS
+    </div>
+
+    <div id="cardGrid" class="grid grid-cols-1 xl:grid-cols-2 gap-4"></div>
+
+    <div id="emptyState" class="hidden panel corners p-12 flex-col items-center justify-center gap-5 text-center">
+      <div class="radar"></div>
+      <div class="font-display font-semibold tracking-widest text-muted text-sm">SCANNING MARKETS…</div>
+      <div class="font-mono text-[10px] text-muted/70 tracking-[.2em]">AWAITING NEXT HIGH-PROBABILITY SETUP</div>
+    </div>
+  </section>
+
+  <!-- ─────── RIGHT RAIL ─────── -->
+  <aside class="lg:col-span-4 space-y-6 min-w-0 lg:sticky lg:top-5 self-start">
+
+    <!-- CHART -->
+    <div class="panel corners overflow-hidden">
+      <div class="px-4 pt-4 pb-3 flex items-center justify-between gap-2">
+        <div class="sec-label decode" data-text="02 · PRICE ACTION"><b>02</b> · PRICE ACTION</div>
+        <select id="pairSelect" class="font-mono text-[11px] px-2 py-1.5 max-w-[150px]"></select>
+      </div>
+      <div class="px-4 pb-3 flex items-end justify-between gap-2">
+        <div>
+          <div class="flex items-center gap-2">
+            <span id="chPair" class="font-display font-bold text-lg">—</span>
+            <span id="chMarket" class="badge crypto">CRYPTO</span>
+          </div>
+          <div class="flex items-baseline gap-2 mt-0.5">
+            <span id="chPrice" class="font-mono text-[22px] font-semibold text-paper">—</span>
+            <span id="chChange" class="font-mono text-[11px] text-call">+0.00%</span>
+          </div>
+        </div>
+        <div class="text-right font-mono text-[10px] text-muted">
+          <div>CANDLE <span class="text-paper">1m</span></div>
+          <div class="mt-0.5">CLOSE IN <span id="candleCd" class="text-ion font-semibold">--</span></div>
+        </div>
+      </div>
+      <div id="chart" class="w-full h-[262px]"></div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="panel corners p-4">
+      <div class="flex items-center justify-between">
+        <div class="sec-label decode" data-text="03 · CONTROL DECK"><b>03</b> · CONTROL DECK</div>
+        <span id="syncNote" class="font-mono text-[9px] text-muted tracking-widest">LOCAL</span>
+      </div>
+
+      <div class="mt-4">
+        <div class="flex justify-between items-baseline mb-2">
+          <label class="text-[12px] font-semibold text-[#c9d7e8]">Confidence Threshold</label>
+          <span class="font-mono text-[13px] text-ion font-semibold"><span id="thrVal">60</span>%</span>
+        </div>
+        <input id="thr" type="range" min="50" max="95" step="1" value="60">
+        <div class="flex justify-between font-mono text-[9px] text-muted mt-1"><span>50</span><span>95</span></div>
+      </div>
+
+      <div class="mt-4 flex items-center justify-between">
+        <div>
+          <div class="text-[12px] font-semibold text-[#c9d7e8]">Sound Alerts</div>
+          <div class="font-mono text-[9px] text-muted mt-0.5 tracking-wider">CHIME ON SIGNALS &gt;85% CONF</div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="beepTest" class="btn-ghost font-mono text-[9px] px-2 py-1.5" title="Test chime">▶ TEST</button>
+          <label class="inline-flex items-center cursor-pointer">
+            <input id="snd" type="checkbox" class="sr-only">
+            <span class="tgl"></span>
+          </label>
+        </div>
+      </div>
+      <div class="mt-4 pt-3 border-t border-line font-mono text-[9px] text-muted tracking-wider flex justify-between">
+        <span>SETTINGS SYNC → <span class="text-ion">POST /api/settings</span></span>
+      </div>
+    </div>
+
+    <!-- ENGINE STATS -->
+    <div class="panel corners p-4">
+      <div class="sec-label decode" data-text="04 · ENGINE TELEMETRY"><b>04</b> · ENGINE TELEMETRY</div>
+      <div class="flex items-center gap-4 mt-4">
+        <svg width="84" height="84" viewBox="0 0 84 84" class="flex-none -rotate-90">
+          <circle cx="42" cy="42" r="34" fill="none" stroke="#152232" stroke-width="7"/>
+          <circle id="wrRing" cx="42" cy="42" r="34" fill="none" stroke="#0fe39b" stroke-width="7"
+                  stroke-linecap="round" stroke-dasharray="213.6" stroke-dashoffset="213.6"
+                  style="transition:stroke-dashoffset .8s cubic-bezier(.2,.8,.2,1)"/>
+        </svg>
+        <div class="grid grid-cols-2 gap-x-6 gap-y-2 font-mono text-[11px] flex-1">
+          <div><div class="text-muted text-[9px] tracking-[.18em]">WINS</div><div id="sWins" class="text-call font-semibold">0</div></div>
+          <div><div class="text-muted text-[9px] tracking-[.18em]">LOSSES</div><div id="sLoss" class="text-put font-semibold">0</div></div>
+          <div><div class="text-muted text-[9px] tracking-[.18em]">AVG CONF</div><div id="sConf" class="text-paper font-semibold">--</div></div>
+          <div><div class="text-muted text-[9px] tracking-[.18em]">UPTIME</div><div id="sUp" class="text-paper font-semibold">00:00</div></div>
+        </div>
+      </div>
+
+      <div class="mt-4 pt-3 border-t border-line">
+        <div class="font-mono text-[9px] text-muted tracking-[.2em] mb-2">RECENT EXECUTIONS</div>
+        <div id="histList" class="space-y-1.5 font-mono text-[10.5px] max-h-[150px] overflow-y-auto pr-1">
+          <div class="text-muted/60">— no executions yet —</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<!-- ═══════════════ ENDPOINT HEALTH FOOTER ═══════════════ -->
+<footer class="relative z-10 border-t border-line bg-[#060a10] mt-4">
+  <div class="max-w-[1560px] mx-auto px-4 lg:px-6 py-4">
+    <div class="sec-label mb-3 decode" data-text="05 · BACKEND LINK — EXPRESS / RENDER"><b>05</b> · BACKEND LINK — EXPRESS / RENDER</div>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div class="border border-line rounded-lg px-3 py-2.5 bg-panel flex items-center justify-between gap-2">
+        <div class="min-w-0"><div class="font-mono text-[11px] text-paper truncate">GET /api/status</div>
+          <div class="font-mono text-[9px] text-muted mt-0.5">poll 1000ms · <span id="h1lat">—</span></div></div>
+        <span id="h1" class="font-mono text-[9px] tracking-widest px-2 py-1 rounded border border-line2 text-muted flex-none">IDLE</span>
+      </div>
+      <div class="border border-line rounded-lg px-3 py-2.5 bg-panel flex items-center justify-between gap-2">
+        <div class="min-w-0"><div class="font-mono text-[11px] text-paper truncate">GET/POST /api/settings</div>
+          <div class="font-mono text-[9px] text-muted mt-0.5">threshold · alerts · <span id="h2lat">—</span></div></div>
+        <span id="h2" class="font-mono text-[9px] tracking-widest px-2 py-1 rounded border border-line2 text-muted flex-none">IDLE</span>
+      </div>
+      <div class="border border-line rounded-lg px-3 py-2.5 bg-panel flex items-center justify-between gap-2">
+        <div class="min-w-0"><div class="font-mono text-[11px] text-paper truncate">POST /api/share-telegram</div>
+          <div class="font-mono text-[9px] text-muted mt-0.5">signal → channel · <span id="h3lat">—</span></div></div>
+        <span id="h3" class="font-mono text-[9px] tracking-widest px-2 py-1 rounded border border-line2 text-muted flex-none">IDLE</span>
+      </div>
+    </div>
+    <div class="mt-3 flex flex-wrap justify-between gap-2 font-mono text-[9px] text-muted/70 tracking-wider">
+      <span>APEX//QUANT TERMINAL · BUILD 2026.08.08 · KEYED-DOM PATCH ENGINE · ZERO-FREEZE FEED</span>
+      <span>MODE: <span id="ftMode" class="text-otc">BOOT</span></span>
+    </div>
+  </div>
+</footer>
+
+<div id="toasts" class="fixed bottom-4 right-4 z-[80] flex flex-col gap-2 pointer-events-none"></div>
+
+<!-- ═══════════════ SIGNAL CARD TEMPLATE ═══════════════ -->
+<template id="tplCard">
+  <article class="sig enter">
+    <header class="flex items-center justify-between px-4 pt-3.5">
+      <div class="flex items-center gap-2 min-w-0">
+        <h3 class="font-display font-bold text-[15px] tracking-wide truncate c-pair"></h3>
+        <span class="badge c-badge">CRYPTO</span>
+        <span class="font-mono text-[9px] text-muted/70 c-hash"></span>
+      </div>
+      <span class="font-mono text-[11px] px-2 py-[3px] rounded border border-line2 bg-ink/60 c-cd text-ion">--:--</span>
+    </header>
+
+    <div class="px-4 mt-3 flex items-center justify-between gap-3">
+      <span class="dchip c-dir">▲ CALL</span>
+      <div class="relative w-[52px] h-[52px] flex-none">
+        <svg viewBox="0 0 52 52" class="w-full h-full -rotate-90">
+          <circle cx="26" cy="26" r="21" fill="none" stroke="#182636" stroke-width="4.5"/>
+          <circle class="c-arc" cx="26" cy="26" r="21" fill="none" stroke="#0fe39b" stroke-width="4.5"
+                  stroke-linecap="round" stroke-dasharray="131.9" stroke-dashoffset="131.9"
+                  style="transition:stroke-dashoffset .6s ease"/>
+        </svg>
+        <div class="absolute inset-0 grid place-items-center ring-num text-[13px] c-confn">0%</div>
+      </div>
+    </div>
+
+    <div class="px-4 mt-3 grid grid-cols-3 gap-2 font-mono text-[11px]">
+      <div class="bg-ink/50 border border-line rounded-lg px-2.5 py-2">
+        <div class="text-[8.5px] text-muted tracking-[.18em]">ENTRY</div>
+        <div class="c-entry font-semibold text-paper mt-0.5 rounded px-0.5 -mx-0.5">—</div>
+      </div>
+      <div class="bg-ink/50 border border-line rounded-lg px-2.5 py-2">
+        <div class="text-[8.5px] text-muted tracking-[.18em]">RSI·14</div>
+        <div class="c-rsi font-semibold mt-0.5">—</div>
+        <div class="rsi-track mt-1.5"><div class="c-rbar h-full rounded" style="width:50%"></div></div>
+      </div>
+      <div class="bg-ink/50 border border-line rounded-lg px-2.5 py-2">
+        <div class="text-[8.5px] text-muted tracking-[.18em]">CANDLE</div>
+        <div class="c-candle font-semibold text-paper mt-0.5">1m</div>
+        <div class="c-born text-[8.5px] text-muted mt-0.5">—</div>
+      </div>
+    </div>
+
+    <div class="px-4 mt-3">
+      <div class="h-[3px] bg-line rounded overflow-hidden"><div class="c-prog h-full" style="width:100%"></div></div>
+    </div>
+
+    <footer class="px-4 py-3 flex gap-2">
+      <button class="btn-tg c-share">
+        <svg class="c-tgicon w-[13px] h-[13px] flex-none" viewBox="0 0 24 24" fill="currentColor"><path d="M2.4 11.1 21 3.3c.9-.4 1.8.5 1.4 1.4l-4.6 17c-.3 1-1.6 1.2-2.2.4l-3.9-4.8-2.6 2.5c-.6.6-1.6.2-1.7-.6l-.4-4.4-4.6-1.9c-.9-.4-.9-1.6 0-1.8Zm5.4 2.5 8.4-5.3c.3-.2.6.2.4.5l-6.7 6.3-.3 3 1.5-1.7Z"/></svg>
+        <span class="c-sharetxt">SHARE TO TELEGRAM</span>
+      </button>
+      <button class="btn-ghost c-copy" title="Copy signal">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+      </button>
+    </footer>
+  </article>
+</template>
 
 <script>
-'use strict';
-const $=id=>document.getElementById(id); const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
-const loadLS=(k,f)=>{try{const v=JSON.parse(localStorage.getItem(k));return v==null?f:v;}catch{return f;}};
-const saveLS=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}};
-const fmtP=p=>p>=1000?p.toLocaleString('en-US',{maximumFractionDigits:2}):p>=1?p.toFixed(2):p.toPrecision(4);
-const state={market:loadLS('ptx.market','real'),tf:loadLS('ptx.tf',15),pairs:[],status:{uptime:0,binance:false,oanda:false,otc:false,signals:0}};
+/* ═════════════════════════════════════════════════════════════════
+   APEX//QUANT TERMINAL — zero-freeze feed engine
+   ▸ Patch-based keyed DOM (cards are updated, never rebuilt)
+   ▸ 1s chained polling (no overlap) + optional WS upgrade (/ws)
+   ▸ Silent fallback to simulated feed; cards never cleared
+═════════════════════════════════════════════════════════════════ */
 
-/* toast */
-let tT; function toast(m,t='ok'){const c=t==='ok'?'border-emerald-400/60 text-emerald-300':t==='err'?'border-rose-400/60 text-rose-300':'border-amber-400/60 text-amber-300';const e=$('toast');e.textContent=m;e.className='pointer-events-none fixed bottom-5 right-5 z-50 rounded border bg-slate-900/95 px-4 py-2.5 mono text-xs '+c+' opacity-100 transition';clearTimeout(tT);tT=setTimeout(()=>e.classList.add('opacity-0'),2400);}
+/* ── CONFIG ─────────────────────────────────────────────────────── */
+const API_BASE = '';   // ← point at your Render service, e.g. 'https://your-engine.onrender.com'
+const API = {
+  status : API_BASE + '/api/status',
+  settings: API_BASE + '/api/settings',
+  share  : API_BASE + '/api/share-telegram',
+};
+const POLL_MS = 1000, FETCH_TIMEOUT = 2200, FAIL_TO_SIM = 4;
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $  = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const p2=n=>String(n).padStart(2,'0');
+const hms=t=>{const d=new Date(t);return p2(d.getUTCHours())+':'+p2(d.getUTCMinutes())+':'+p2(d.getUTCSeconds())};
+const fmtDur=s=>{s=Math.max(0,Math.floor(s));return (s/60>=1? Math.floor(s/60)+'m' : s+'s')};
+const fmtPrice=(p,dp)=>Number(p).toLocaleString('en-US',{minimumFractionDigits:dp,maximumFractionDigits:dp});
 
-/* sidebar */
-$('menuBtn').onclick=()=>{openNav(true)};$('closeMenu').onclick=()=>openNav(false);$('scrim').onclick=()=>openNav(false);
-function openNav(on){$('sidebar').classList.toggle('open',on);$('scrim').classList.toggle('hidden',!on);}
-document.querySelectorAll('.nav-item').forEach(a=>a.onclick=()=>{switchView(a.dataset.view);openNav(false);});
-function switchView(v){document.querySelectorAll('.view').forEach(s=>s.classList.add('hidden'));$('view-trading').classList.toggle('hidden',!['quotex','pocket'].includes(v));if(v==='quotex')$('view-trading').classList.remove('hidden');if(v==='pocket'){$('view-trading').classList.remove('hidden');$('brokerTag').textContent='Broker: Pocket Option';}if(v==='ai')$('view-ai').classList.remove('hidden');if(v==='strategy')$('view-strategy').classList.remove('hidden');if(v==='telegram')$('view-telegram').classList.remove('hidden');}
+/* ── INSTRUMENTS ────────────────────────────────────────────────── */
+const PAIRS = {
+  CRYPTO:[
+    {sym:'BTC/USDT',base:118420,vol:.00045,dp:1},{sym:'ETH/USDT',base:4213.5,vol:.0006,dp:2},
+    {sym:'SOL/USDT',base:209.4,vol:.0009,dp:2},{sym:'BNB/USDT',base:687.2,vol:.0006,dp:2},
+    {sym:'XRP/USDT',base:2.4176,vol:.0009,dp:4},{sym:'DOGE/USDT',base:.3182,vol:.0011,dp:5},
+  ],
+  OTC:[
+    {sym:'EUR/USD OTC',base:1.0842,vol:.00006,dp:5},{sym:'GBP/JPY OTC',base:191.34,vol:.0001,dp:3},
+    {sym:'AUD/CAD OTC',base:.9087,vol:.00007,dp:5},{sym:'USD/CHF OTC',base:.8843,vol:.00006,dp:5},
+    {sym:'EUR/GBP OTC',base:.8591,vol:.00005,dp:5},{sym:'USD/JPY OTC',base:152.63,vol:.00009,dp:3},
+  ]
+};
+const ALL_PAIRS=[...PAIRS.CRYPTO,...PAIRS.OTC];
+const CFG=Object.fromEntries(ALL_PAIRS.map(p=>[p.sym,p]));
 
-/* market tabs + tf */
-document.querySelectorAll('.mk-tab').forEach(b=>b.onclick=()=>{setMarket(b.dataset.market);});
-function setMarket(m){state.market=m;saveLS('ptx.market',m);document.querySelectorAll('.mk-tab').forEach(b=>{const on=b.dataset.market===m;b.className='mk-tab rounded border px-3 py-1.5 mono text-xs '+(on?'border-emerald-400/50 bg-emerald-400/10 text-emerald-300':'border-slate-700 text-slate-400');});refreshPairs();}
-$('tfSel').onchange=e=>{state.tf=+e.target.value;saveLS('ptx.tf',state.tf);refreshCandle();};
+/* ── STATE ──────────────────────────────────────────────────────── */
+const S={
+  mode:'connecting', fails:0, ws:null, wsLive:false, lastLat:null,
+  signals:new Map(), elMap:new Map(), order:[],
+  tab:'ALL', q:'',
+  settings:{threshold:60,sound:false},
+  stats:{wins:0,losses:0,filtered:0,total:0,sumConf:0,confN:0,streak:0},
+  mkt:{}, bootTs:Date.now(), chartSym:null, selSym:null, shareLast:null,
+};
+ALL_PAIRS.forEach(c=>S.mkt[c.sym]={p:c.base,start:c.base,mom:0,d:[],rsi:50});
 
-/* polling */
-async function pollStatus(){try{const r=await fetch('/api/status',{cache:'no-store'});if(!r.ok)return;const j=await r.json();state.status={uptime:j.uptime_seconds||0,binance:!!j.binance,oanda:!!j.oanda,otc:!!j.otc,signals:j.signals_total||0};renderHeader();}catch{}}
-function renderHeader(){const s=state.status;setDot('binDot',s.binance);setDot('fxDot',s.oanda);setDot('otcDot',s.otc);$('sigT').textContent=s.signals;$('upT').textContent=fmtUp(s.uptime);}
-function setDot(id,on){const e=$(id);e.className='mr-1 inline-block h-2 w-2 rounded-full '+(on?'bg-emerald-400 dot-live':'bg-slate-600');}
-function fmtUp(s){const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return (h?h+'h ':'')+m+'m '+x+'s';}
+/* ── TOASTS ─────────────────────────────────────────────────────── */
+const TICONS={success:'✓',error:'✕',info:'ℹ'};
+const TCOL={success:'#0fe39b',error:'#ff3b5c',info:'#4ee1ff'};
+function toast(type,title,msg,ms=3600){
+  const root=$('#toasts'),el=document.createElement('div');
+  el.className='toast';
+  el.innerHTML=`<span class="font-mono font-bold text-[13px] mt-[1px]" style="color:${TCOL[type]}">${TICONS[type]}</span>
+    <div class="min-w-0"><div class="font-display font-semibold text-[12px] tracking-wide">${title}</div>
+    ${msg?`<div class="font-mono text-[10px] text-muted mt-0.5 leading-relaxed">${msg}</div>`:''}</div>
+    <span class="bar" style="background:${TCOL[type]};animation-duration:${ms}ms"></span>`;
+  root.appendChild(el);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>el.classList.add('show')));
+  setTimeout(()=>{el.classList.remove('show');setTimeout(()=>el.remove(),350)},ms);
+}
 
-async function refreshPairs(){try{const r=await fetch('/api/pairs?market='+state.market+'&limit=200',{cache:'no-store'});if(!r.ok)return;state.pairs=await r.json();renderTable();}catch{}}
-function renderTable(){const tb=$('tblBody');tb.innerHTML=state.pairs.map(p=>`<tr class="border-b border-slate-800/50 hover:bg-slate-800/30">
- <td class="px-3 py-2.5 font-semibold text-slate-200">${p.symbol}<span class="text-slate-500"> · ${p.universe||''}</span></td>
- <td class="px-3 py-2.5 text-right"><span class="num text-slate-100">${fmtP(p.price)}</span></td>
- <td class="px-3 py-2.5 text-right num text-slate-300">${p.rsi?.toFixed?.(1)||'—'}</td>
- <td class="px-3 py-2.5 text-right num ${Math.abs(p.zscore)>1.5?'text-amber-300':'text-cyan-300'}">${p.zscore!=null?(p.zscore>=0?'+':'')+p.zscore.toFixed(2):'—'}</td>
- <td class="px-3 py-2.5 font-semibold tracking-wider ${p.signal==='CALL'?'text-emerald-400':p.signal==='PUT'?'text-rose-400':'text-slate-500'}">${p.signal||'—'}</td>
- <td class="px-3 py-2.5 text-right"><span class="num text-violet-300">${p.confidence??0}%</span></td>
- <td class="px-3 py-2.5 text-right num text-slate-400">${p.tf??state.tf}m</td>
- <td class="px-3 py-2.5 text-right"><button class="rounded border border-emerald-400/40 px-2 py-1 text-[10px] text-emerald-300" data-sel="${p.symbol}">WATCH</button></td></tr>`).join('');
- tb.querySelectorAll('[data-sel]').forEach(b=>b.onclick=()=>{state.candleSym=b.dataset.sel;refreshCandle();toast('Tracking '+b.dataset.sel);});}
+/* ── SOUND ENGINE (WebAudio, gesture-gated) ─────────────────────── */
+let actx=null;
+function chime(dir){
+  if(!S.settings.sound) return;
+  try{
+    actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    if(actx.state==='suspended') actx.resume();
+    const t=actx.currentTime;
+    const seq = dir==='CALL'?[660,880]:[520,330];
+    seq.forEach((f,i)=>{
+      const o=actx.createOscillator(),g=actx.createGain();
+      o.type='sine';o.frequency.value=f;
+      g.gain.setValueAtTime(0,t+i*.1);
+      g.gain.linearRampToValueAtTime(.16,t+i*.1+.02);
+      g.gain.exponentialRampToValueAtTime(.001,t+i*.1+.22);
+      o.connect(g).connect(actx.destination);o.start(t+i*.1);o.stop(t+i*.1+.26);
+    });
+  }catch(e){}
+}
 
-async function refreshCandle(){const sym=state.candleSym||state.pairs[0]?.symbol||'BTCUSDT';if(!state.candleSym)state.candleSym=sym;try{const r=await fetch(`/api/candles/${sym}?tf=${state.tf}`,{cache:'no-store'});if(!r.ok)return;const j=await r.json();$('candleSym').textContent=j.symbol;$('cdO').textContent=fmtP(j.candle.price?.base??j.current?.o??0);$('cdP').textContent=fmtP(j.candle.price??j.current?.price??0);$('cdI').textContent=j.candle.index;const rem=j.candle.remaining;const total=j.tf*60000;$('cdR').textContent=Math.floor(rem/1000)+'s';$('cdProg').style.width=((total-rem)/total*100)+'%';const bull=(j.current&&j.candle.price>=j.current.o);$('cdD').textContent=j.candle.direction.toUpperCase();$('cdD').className='num text-'+(bull?'emerald-300':'rose-300');$('nextSig').textContent=j.candle.direction==='bullish'?'CALL':'PUT';$('nextEntry').textContent=fmtP(j.candle.price);$('nextConf').textContent=(55+Math.abs(j.candle.price-(j.current?.o||j.candle.price))/(j.candle.price||1)*400).toFixed(0)+'%';}catch{}}
+/* ── SCRAMBLE-DECODE TITLES ─────────────────────────────────────── */
+const GLYPHS='01▓▒░<>/\\#@$%&';
+function decode(el){
+  const txt=el.dataset.text||el.textContent; el.dataset.text=txt;
+  if(REDUCED){el.textContent=txt;return}
+  let f=0,total=Math.max(14,txt.length*2);
+  const iv=setInterval(()=>{
+    f++;
+    el.textContent=txt.split('').map((ch,i)=> i < f*txt.length/total ? ch : GLYPHS[(Math.random()*GLYPHS.length)|0]).join('');
+    if(f>=total){el.textContent=txt;clearInterval(iv)}
+  },34);
+}
 
-/* gemini key modal */
-$('gemBtn').onclick=()=>{$('gemModal').classList.remove('hidden');$('gemModal').classList.add('grid');};
-$('gemClose').onclick=()=>$('gemModal').classList.add('hidden');
-$('gemSave').onclick=async()=>{const k=$('gemKey').value.trim();if(!k)return toast('Enter a key','warn');const r=await fetch('/api/gemini/key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:k})});const j=await r.json();$('gemStatus').textContent='Key set: '+(j.key||'');toast('Gemini key saved (memory)');$('gemKey').value='';};
-$('gemClear').onclick=async()=>{await fetch('/api/gemini/clear',{method:'POST'});$('gemStatus').textContent='Key cleared';toast('Gemini key cleared','warn');};
+/* ── CLOCK & UPTIME ─────────────────────────────────────────────── */
+setInterval(()=>{
+  $('#utcClock').textContent=hms(Date.now());
+  const up=Math.floor((Date.now()-S.bootTs)/1000);
+  $('#sUp').textContent=`${p2(Math.floor(up/60))}:${p2(up%60)}`;
+},1000);
 
-/* AI scan */
-$('aiScan').onclick=async()=>{const sym=$('aiSym').value.trim().toUpperCase()||state.candleSym;hideErr();$('aiResult').textContent='Analyzing '+sym+' …';try{const r=await fetch('/api/ai/scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({symbol:sym,tf:state.tf})});const j=await r.json();if(j.ok){$('aiResult').textContent=JSON.stringify(j.analysis,null,2);}else showErr(j.error);}catch(e){showErr(e.message);}};
-function showErr(m){const e=$('aiError');e.classList.remove('hidden');e.textContent='⚠ AI ISOLATED ERROR (signals unaffected): '+m;}
-function hideErr(){$('aiError').classList.add('hidden');}
+/* ── TICKER TAPE ────────────────────────────────────────────────── */
+const tickRefs={};
+(function buildTicker(){
+  const track=$('#tickerTrack');
+  for(let side=0;side<2;side++){
+    ALL_PAIRS.forEach(c=>{
+      const el=document.createElement('span');
+      el.className='flex items-center gap-2 flex-none';
+      el.innerHTML=`<b class="text-[#c9d7e8] font-semibold">${c.sym}</b>
+        <span class="tk-p text-muted">—</span><span class="tk-d text-[10px]">—</span>`;
+      track.appendChild(el);
+      (tickRefs[c.sym]=tickRefs[c.sym]||{}).side=side;
+      tickRefs[c.sym][side]={p:el.querySelector('.tk-p'),d:el.querySelector('.tk-d')};
+    });
+  }
+})();
+function updateTicker(){
+  for(const sym in tickRefs){
+    const m=S.mkt[sym], pct=(m.p/m.start-1)*100, up=pct>=0;
+    for(const side in tickRefs[sym]){ if(side==='side')continue;
+      const r=tickRefs[sym][side];
+      r.p.textContent=fmtPrice(m.p,CFG[sym].dp);
+      r.p.className='tk-p '+(up?'text-call':'text-put');
+      r.d.textContent=(up?'▲':'▼')+Math.abs(pct).toFixed(2)+'%';
+      r.d.className='tk-d text-[10px] '+(up?'text-call/70':'text-put/70');
+    }
+  }
+}
 
-/* vision upload */
-const drop=$('drop'),fi=$('fileInput');
-drop.onclick=()=>fi.click();fi.onchange=()=>upload(fi.files[0]);
-drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('border-violet-400');});
-drop.addEventListener('drop',e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(f)upload(f);});
-function upload(f){if(!f)return;const rd=new FileReader();rd.onload=async()=>{$('visionResult').textContent='Analyzing image via Gemini…';try{const r=await fetch('/api/analyze-chart',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image:rd.result,tf:state.tf})});const j=await r.json();if(j.ok)$('visionResult').textContent=JSON.stringify(j.analysis,null,2);else showErr(j.error);}catch(e){showErr(e.message);}};rd.readAsDataURL(f);}
+/* ── MARKET SIMULATION (fallback feed + chart driver) ───────────── */
+function stepPrices(){
+  ALL_PAIRS.forEach(c=>{
+    const m=S.mkt[c.sym];
+    m.mom=m.mom*.9+(Math.random()-.5)*c.vol*.7;
+    const prev=m.p;
+    m.p=Math.max(c.base*.5, m.p*(1+m.mom+(Math.random()-.5)*c.vol*2));
+    const d=m.p-prev; m.d.push(d); if(m.d.length>20)m.d.shift();
+    let g=0,l=0; m.d.slice(-14).forEach(x=>x>=0?g+=x:l-=x);
+    m.rsi=l===0?100:100-100/(1+(g/14)/((l/14)||1e-9));
+  });
+}
+function rsiColor(v){return v>=70?'text-put':v<=30?'text-call':'text-paper'}
+function rsiBar(v){return v>=70?'#ff3b5c':v<=30?'#0fe39b':'#4ee1ff'}
 
-/* strategy save */
-$('stSave').onclick=async()=>{const b={rsiLow:+$('stRsiL').value,rsiHigh:+$('stRsiH').value,zscoreMin:+$('stZ').value,adxMin:+$('stAdx').value,srBreakout:+$('stSr').value};const r=await fetch('/api/strategy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});const j=await r.json();toast('Strategy rules applied');$('aiError')&&null;};
+let simIv=null;
+function startSim(){
+  if(simIv) return;
+  S.mode='sim'; setConn();
+  simIv=setInterval(()=>{                       // emits 1 signal every ~3–8s
+    if(S.signals.size<10 && Math.random()<.22) emitSimSignal();
+  },1000);
+}
+function stopSim(){clearInterval(simIv);simIv=null}
+function emitSimSignal(){
+  const c=ALL_PAIRS[(Math.random()*ALL_PAIRS.length)|0];
+  const m=S.mkt[c.sym], market=PAIRS.OTC.includes(c)?'OTC':'CRYPTO';
+  let dir=Math.random()<.5?'CALL':'PUT';
+  if(m.rsi>63)dir='PUT'; else if(m.rsi<37)dir='CALL';
+  const high=Math.random()<.2;
+  const conf=Math.round(high?86+Math.random()*11:54+Math.random()*30);
+  const candle=[15,30,60,60,300][(Math.random()*5)|0];
+  const now=Date.now();
+  const sig={id:'SIM'+now.toString(36)+Math.floor(Math.random()*999),pair:c.sym,market,direction:dir,
+    confidence:conf,rsi:m.rsi,entry:m.p,dp:c.dp,candleTime:candle,expireAt:now+candle*1000,
+    createdAt:now,phase:'active',result:null,source:'sim'};
+  S.signals.set(sig.id,sig); mountCard(sig,true); S.stats.total++;
+  if(conf<=S.settings.threshold) S.stats.filtered++;
+  if(conf>85) chime(dir);
+}
+function resolveSim(s){
+  const winP=clamp(.5+(s.confidence-50)/100*.55,.5,.93);
+  s.result=Math.random()<winP?'WIN':'LOSS'; closeSignal(s);
+}
+function closeSignal(s){
+  s.phase='closed'; s.removeAt=Date.now()+8000;
+  if(s.result==='WIN'){S.stats.wins++;S.stats.streak=S.stats.streak>=0?S.stats.streak+1:1}
+  else if(s.result==='LOSS'){S.stats.losses++;S.stats.streak=S.stats.streak<=0?S.stats.streak-1:-1}
+  if(s.result) pushHistory(s);
+}
+function pushHistory(s){
+  const list=$('#histList');
+  if(list.firstElementChild && !s.result) return;
+  if(list.firstElementChild && list.firstElementChild.textContent.startsWith('—')) list.innerHTML='';
+  const el=document.createElement('div');
+  el.className='hist-item flex items-center gap-2 text-[10.5px]';
+  const rc=s.result==='WIN'?'text-call':s.result==='LOSS'?'text-put':'text-muted';
+  el.innerHTML=`<span class="text-muted/70">${hms(s.createdAt)}</span>
+    <span class="text-[#c9d7e8] font-semibold">${s.pair}</span>
+    <span class="${s.direction==='CALL'?'text-call':'text-put'}">${s.direction==='CALL'?'▲':'▼'} ${s.direction}</span>
+    <span class="flex-1"></span><span class="${rc} font-bold">${s.result||'—'}</span>`;
+  list.prepend(el);
+  while(list.children.length>9) list.lastChild.remove();
+}
 
-/* telegram */
-$('tgToggle').onclick=async()=>{const on=$('tgToggle').textContent==='ON';$('tgToggle').textContent=on?'OFF':'ON';toast(on?'Alerts OFF (dashboard unaffected)':'Alerts ON','warn');};
-$('tgTest').onclick=async()=>{const r=await fetch('/api/telegram/test',{method:'POST'});const j=await r.json();$('tgMsg').textContent=j.ok?'Test alert sent ✓':('Error: '+(j.error||''));toast(j.ok?'Test alert sent':'Failed','warn');};
+/* ── FEED CONTROLLER: WS upgrade → polling → silent sim fallback ── */
+function tryWS(){
+  if(!location.host || !/^https?:$/.test(location.protocol)) return;
+  try{
+    const ws=new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host+'/ws');
+    const guard=setTimeout(()=>{try{ws.close()}catch(e){}},2500);
+    ws.onopen=()=>{clearTimeout(guard);S.wsLive=true;S.ws=ws;setConn()};
+    ws.onmessage=e=>{try{ingest(JSON.parse(e.data),0)}catch(err){}};
+    ws.onclose=ws.onerror=()=>{clearTimeout(guard);S.wsLive=false;S.ws=null;setConn()};
+  }catch(e){}
+}
+async function fetchStatus(){
+  const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(),FETCH_TIMEOUT);
+  const t0=performance.now();
+  try{
+    const res=await fetch(API.status,{signal:ctrl.signal,cache:'no-store',headers:{Accept:'application/json'}});
+    clearTimeout(to);
+    if(!res.ok) throw new Error(res.status);
+    const data=await res.json();
+    return {data,ms:Math.round(performance.now()-t0)};
+  }catch(e){clearTimeout(to);throw e}
+}
+function normalize(raw){
+  let arr=Array.isArray(raw)?raw:(raw?.signals||raw?.data?.signals||raw?.active_signals||[]);
+  const now=Date.now();
+  return arr.map((x,i)=>{
+    const dir=String(x.direction||x.type||x.signal||'').toUpperCase();
+    const direction=/CALL|BUY|UP|LONG/.test(dir)?'CALL':/PUT|SELL|DOWN|SHORT/.test(dir)?'PUT':null;
+    const pair=String(x.pair||x.symbol||x.asset||'???');
+    const market=String(x.market||x.market_type||'').toUpperCase().includes('OTC')?'OTC':
+                  (x.market? 'CRYPTO':(pair.includes('OTC')?'OTC':'CRYPTO'));
+    const candle=Number(x.candleTime??x.candle_time??x.timeframe_sec??60);
+    const created=Number(x.timestamp??x.created_at??now);
+    return { id:String(x.id??(pair+direction+(x.timestamp??'')))+i, pair, market, direction,
+      confidence:Number(x.confidence??x.conf??0), rsi:Number(x.rsi??50),
+      entry:Number(x.entryPrice??x.entry??x.price??0), dp:Number.isFinite(+x.dp)?+x.dp:(pair.includes('OTC')?5:2),
+      candleTime:candle, expireAt:created+candle*1000, createdAt:created,
+      phase:'active', result:/WIN/.test(String(x.status||''))?'WIN':/LOSS|LOST/.test(String(x.status||''))?'LOSS':null,
+      source:'live'};
+  }).filter(s=>s.direction);
+}
+function ingest(raw,lat){
+  const wasSim=S.mode==='sim';
+  S.mode='live'; S.fails=0; S.lastLat=lat; setConn();
+  $('#h1').textContent='LIVE'; $('#h1').className=chipCls('ok'); $('#h1lat').textContent=lat+'ms';
+  if(wasSim){ // drop simulated placeholders only — user cards never wiped on reconnect
+    [...S.signals.values()].filter(s=>s.source==='sim'&&s.phase==='active').forEach(s=>s.removeAt=Date.now()+400);
+    stopSim(); toast('success','LIVE FEED RESTORED','Reconnected to engine — simulated feed retired.');
+  }
+  const list=normalize(raw), seen=new Set(), now=Date.now();
+  list.forEach(s=>{
+    seen.add(s.id);
+    const prev=S.signals.get(s.id);
+    if(prev){ Object.assign(prev,{confidence:s.confidence,rsi:s.rsi,entry:s.entry,result:s.result});
+      if(s.result&&!prev.removeAt) closeSignal(prev); }
+    else{ S.signals.set(s.id,s); mountCard(s,true); S.stats.total++;
+      if(s.confidence<=S.settings.threshold) S.stats.filtered++;
+      if(s.confidence>85) chime(s.direction); }
+  });
+  // graceful retirement of signals that left the live feed (no fake outcomes)
+  S.signals.forEach(s=>{ if(s.source==='live'&&s.phase==='active'&&!seen.has(s.id)){
+    if(!s._miss) s._miss=now; else if(now-s._miss>6000){s.result=null;closeSignal(s)} } });
+  if(raw?.stats){ // adopt engine-reported stats when provided
+    const st=raw.stats;
+    if(Number.isFinite(+st.winRate)) S.stats.winRateOverride=+st.winRate;
+    if(Number.isFinite(+st.wins)) S.stats.wins=+st.wins;
+    if(Number.isFinite(+st.losses)) S.stats.losses=+st.losses;
+    if(Number.isFinite(+st.totalSignals)) S.stats.total=+st.totalSignals;
+  }
+}
+function onFeedError(){
+  S.fails++;
+  if(S.fails>=FAIL_TO_SIM && S.mode!=='sim'){ startSim(); toast('info','ENGINE UNREACHABLE','Silent fallback engaged — simulated feed active. Your cards are preserved.'); }
+  else if(S.mode!=='sim'){ S.mode='connecting'; }
+  setConn();
+  $('#h1').textContent='OFFLINE'; $('#h1').className=chipCls('bad');
+}
+function chipCls(k){const b='font-mono text-[9px] tracking-widest px-2 py-1 rounded border flex-none ';
+  return k==='ok'?b+'text-call border-call/40 bg-call/10':k==='bad'?b+'text-put border-put/40 bg-put/10'
+  :k==='warn'?b+'text-otc border-otc/40 bg-otc/10':b+'text-muted border-line2'}
+function setConn(){
+  const d=$('#connDot'),l=$('#connLabel'),f=$('#ftMode');
+  if(S.wsLive){d.className='dot live';l.textContent='LIVE · WS';l.className='font-mono text-[10px] tracking-[.18em] text-call';f.textContent='LIVE·WS';f.className='text-call'}
+  else if(S.mode==='live'){d.className='dot live';l.textContent='LIVE · REST';l.className='font-mono text-[10px] tracking-[.18em] text-call';f.textContent='LIVE·REST';f.className='text-call'}
+  else if(S.mode==='sim'){d.className='dot sim';l.textContent='SIM FEED';l.className='font-mono text-[10px] tracking-[.18em] text-otc';f.textContent='SIMULATED';f.className='text-otc'}
+  else{d.className='dot warn';l.textContent='RECONNECTING';l.className='font-mono text-[10px] tracking-[.18em] text-otc';f.textContent='RECONNECTING';f.className='text-otc'}
+}
 
-/* boot */
-setInterval(pollStatus,2000);setInterval(refreshPairs,2000);setInterval(refreshCandle,1000);
-pollStatus();refreshPairs();refreshCandle();
+/* main loop — chained setTimeout = zero overlap, zero pile-up */
+async function loop(){
+  if(!document.hidden){
+    stepPrices(); updateTicker(); chartTick(); maintenance();
+    if(!S.wsLive){
+      try{ const {data,ms}=await fetchStatus(); ingest(data,ms); $('#latVal').textContent=ms; }
+      catch(e){ onFeedError(); }
+    } else $('#latVal').textContent='0';
+    renderPass(); updateStats();
+  }
+  setTimeout(loop,POLL_MS);
+}
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) loop(); });
+
+/* ── CARD RENDERER (keyed patch — no rebuilds, no flicker) ─────── */
+const TPL=$('#tplCard');
+function mountCard(sig,animate){
+  if(S.elMap.has(sig.id)) return;
+  const node=TPL.content.firstElementChild.cloneNode(true);
+  node.dataset.id=sig.id;
+  const R={pair:node.querySelector('.c-pair'),badge:node.querySelector('.c-badge'),hash:node.querySelector('.c-hash'),
+    cd:node.querySelector('.c-cd'),dir:node.querySelector('.c-dir'),arc:node.querySelector('.c-arc'),
+    confn:node.querySelector('.c-confn'),entry:node.querySelector('.c-entry'),rsi:node.querySelector('.c-rsi'),
+    rbar:node.querySelector('.c-rbar'),candle:node.querySelector('.c-candle'),born:node.querySelector('.c-born'),
+    prog:node.querySelector('.c-prog'),share:node.querySelector('.c-share'),sharetxt:node.querySelector('.c-sharetxt'),
+    copy:node.querySelector('.c-copy'),lastEntry:null};
+  node.classList.add(sig.direction==='CALL'?'call':'put');
+  R.pair.textContent=sig.pair;
+  R.badge.textContent=sig.market; R.badge.className='badge c-badge '+(sig.market==='OTC'?'otc':'crypto');
+  R.hash.textContent='#'+sig.id.slice(-4).toUpperCase();
+  R.dir.textContent=(sig.direction==='CALL'?'▲ CALL':'▼ PUT');
+  R.dir.className='dchip c-dir '+sig.direction.toLowerCase();
+  R.arc.style.stroke=sig.direction==='CALL'?'#0fe39b':'#ff3b5c';
+  R.candle.textContent=fmtDur(sig.candleTime);
+  R.born.textContent=hms(sig.createdAt)+' UTC';
+  R.prog.style.background=sig.direction==='CALL'?'#0fe39b':'#ff3b5c';
+  if(!animate||REDUCED) node.classList.remove('enter');
+  R.share.addEventListener('click',e=>{e.stopPropagation();shareSignal(sig,R)});
+  R.copy.addEventListener('click',e=>{e.stopPropagation();copySignal(sig)});
+  node.addEventListener('click',()=>selectPair(sig.pair,sig.id));
+  S.elMap.set(sig.id,node); $('#cardGrid').appendChild(node);
+}
+function visibleSignals(){
+  const now=Date.now();
+  return [...S.signals.values()]
+    .filter(s=>s.phase==='active'||(s.removeAt&&now<s.removeAt))
+    .filter(s=>s.phase==='closed'||s.confidence>=S.settings.threshold)
+    .filter(s=>S.tab==='ALL'||s.market===S.tab)
+    .filter(s=>!S.q||s.pair.toLowerCase().includes(S.q))
+    .sort((a,b)=>b.createdAt-a.createdAt).slice(0,24);
+}
+function renderPass(){
+  const grid=$('#cardGrid'), vis=visibleSignals(), ids=new Set(vis.map(s=>s.id));
+  // remove cards that fell out entirely
+  S.elMap.forEach((el,id)=>{ if(!ids.has(id)&&!grid.contains(el)){el.remove();S.elMap.delete(id)} });
+  vis.forEach((s,i)=>{
+    const el=S.elMap.get(s.id); if(!el)return;
+    if(grid.children[i]!==el) grid.insertBefore(el,grid.children[i]||null);
+    el.classList.toggle('sel',S.selSym===s.id);
+    patchCard(s,el);
+  });
+  // counts
+  const act=[...S.signals.values()].filter(s=>s.phase==='active');
+  const cnt=m=>act.filter(s=>m==='ALL'||s.market===m).length;
+  $$('[data-c]').forEach(e=>e.textContent=cnt(e.dataset.c));
+  $('#visCount').textContent='['+vis.length+']';
+  const below=act.filter(s=>s.confidence<S.settings.threshold&&(S.tab==='ALL'||s.market===S.tab)).length;
+  $('#hiddenPill').classList.toggle('hidden',below===0); $('#hiddenN').textContent=below;
+  $('#emptyState').classList.toggle('hidden',vis.length>0);
+  $('#emptyState').classList.toggle('flex',vis.length===0);
+}
+function patchCard(s,el){
+  const R=el._r||(el._r={entry:null,lastEntry:null});
+  const q=k=>el.querySelector(k);
+  // confidence ring + number
+  const arc=q('.c-arc'),cn=q('.c-confn');
+  if(cn.textContent!==s.confidence+'%'){
+    cn.textContent=s.confidence+'%';
+    arc.style.strokeDashoffset=131.9*(1-clamp(s.confidence,0,100)/100);
+  }
+  // entry with directional flash
+  const en=q('.c-entry'),etxt=fmtPrice(s.entry,s.dp);
+  if(R.entry!==etxt){
+    if(R.entry&&!REDUCED){en.classList.remove('fu','fd');void en.offsetWidth;
+      en.classList.add(s.entry>R.lastEntry?'fu':'fd')}
+    R.lastEntry=s.entry;R.entry=etxt;en.textContent=etxt;
+  }
+  // rsi
+  const rs=q('.c-rsi'),rb=q('.c-rbar');
+  if(rs.textContent!==s.rsi.toFixed(1)){rs.textContent=s.rsi.toFixed(1);rs.className='c-rsi font-semibold mt-0.5 '+rsiColor(s.rsi);
+    rb.style.width=clamp(s.rsi,0,100)+'%';rb.style.background=rsiBar(s.rsi)}
+  // countdown + progress
+  const now=Date.now(),cd=q('.c-cd'),pg=q('.c-prog');
+  if(s.phase==='active'){
+    cd.textContent='T-'+p2(Math.max(0,Math.floor((s.expireAt-now)/1000)));
+    pg.style.width=clamp((s.expireAt-now)/(s.candleTime*1000)*100,0,100)+'%';
+    if(now>=s.expireAt){ s.source==='sim'?resolveSim(s):(s.result=s.result||null,closeSignal(s)); }
+  } else cd.textContent='CLOSED';
+  // result stamp
+  if(s.phase==='closed'&&!el._stamped){
+    el._stamped=true;el.classList.add('closed');
+    if(s.result){const st=document.createElement('div');st.className='stamp '+s.result.toLowerCase();
+      st.textContent=s.result;el.appendChild(st)}
+    pg.style.width='0%';
+  }
+}
+function maintenance(){
+  const now=Date.now();
+  S.signals.forEach((s,id)=>{
+    if(s.phase==='closed'&&s.removeAt&&now>=s.removeAt){
+      const el=S.elMap.get(id);
+      if(el){el.classList.add('leaving');setTimeout(()=>{el.remove();S.elMap.delete(id)},320)}
+      else S.elMap.delete(id);
+      S.signals.delete(id);
+    }
+  });
+}
+
+/* ── SHARE TO TELEGRAM ──────────────────────────────────────────── */
+function sigText(s){
+  return `⚡ APEX QUANT SIGNAL\n${s.pair} · ${s.market} · ${fmtDur(s.candleTime)}\n${s.direction==='CALL'?'▲':'▼'} ${s.direction} @ ${fmtPrice(s.entry,s.dp)}\nConfidence ${s.confidence}% · RSI ${s.rsi.toFixed(1)}\n${hms(s.createdAt)} UTC`;
+}
+async function shareSignal(sig,R){
+  const btn=R.share,txt=R.sharetxt;
+  btn.disabled=true; txt.textContent='PUBLISHING…';
+  const payload={signalId:sig.id,pair:sig.pair,market:sig.market,direction:sig.direction,
+    confidence:sig.confidence,rsi:+sig.rsi.toFixed(1),entryPrice:sig.entry,
+    candleTime:sig.candleTime,timestamp:sig.createdAt,source:'dashboard'};
+  try{
+    if(S.mode==='sim'){ await new Promise(r=>setTimeout(r,650)); }
+    else{
+      const res=await fetch(API.share,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      if(!res.ok) throw new Error('HTTP '+res.status);
+    }
+    btn.classList.add('sent'); txt.textContent='SENT ✓';
+    toast('success','PUBLISHED TO TELEGRAM',`${sig.pair} ${sig.direction} · ${sig.confidence}% conf`);
+    S.shareLast=Date.now(); $('#h3').textContent='OK'; $('#h3').className=chipCls('ok'); $('#h3lat').textContent=hms(Date.now());
+  }catch(e){
+    toast('error','TELEGRAM PUSH FAILED','POST /api/share-telegram → '+(e.message||'network error'));
+    S.shareLast=Date.now(); $('#h3').textContent='FAIL'; $('#h3').className=chipCls('bad'); $('#h3lat').textContent=e.message;
+  }finally{
+    setTimeout(()=>{btn.disabled=false;btn.classList.remove('sent');txt.textContent='SHARE TO TELEGRAM'},2200);
+  }
+}
+async function copySignal(s){
+  try{await navigator.clipboard.writeText(sigText(s));toast('info','SIGNAL COPIED',s.pair+' → clipboard')}
+  catch(e){toast('error','COPY BLOCKED','Clipboard permission denied')}
+}
+
+/* ── CHART (Lightweight Charts v4) ─────────────────────────────── */
+const HAS_LWC=typeof LightweightCharts!=='undefined';
+let chart=null,cSeries=null,vSeries=null,chartCfg=null,cur=null,curVol=null,
+    candleStart=0,DUR=30,prevClose=null,histCache={};
+function initChart(){
+  const el=$('#chart');
+  if(!HAS_LWC){el.innerHTML='<div class="h-full grid place-items-center font-mono text-[10px] text-muted">CHART LIB FAILED TO LOAD</div>';return}
+  chart=LightweightCharts.createChart(el,{
+    layout:{background:{type:'solid',color:'transparent'},textColor:'#5f7189',fontFamily:'IBM Plex Mono,monospace',fontSize:10},
+    grid:{vertLines:{color:'rgba(90,120,160,.06)'},horzLines:{color:'rgba(90,120,160,.06)'}},
+    rightPriceScale:{borderColor:'rgba(90,120,160,.18)'},
+    timeScale:{borderColor:'rgba(90,120,160,.18)',timeVisible:true,secondsVisible:true,rightOffset:4,barSpacing:7},
+    crosshair:{vertLine:{labelBackgroundColor:'#1a2433'},horzLine:{labelBackgroundColor:'#1a2433'}},
+    width:el.clientWidth,height:262,
+  });
+  cSeries=chart.addCandlestickSeries({upColor:'#0fe39b',downColor:'#ff3b5c',wickUpColor:'#0fe39b',
+    wickDownColor:'#ff3b5c',borderVisible:false,priceFormat:{type:'price',precision:2,minMove:.01}});
+  vSeries=chart.addHistogramSeries({priceFormat:{type:'volume'},priceScaleId:'vol'});
+  chart.priceScale('vol').applyOptions({scaleMargins:{top:.85,bottom:0}});
+  new ResizeObserver(()=>chart.applyOptions({width:el.clientWidth})).observe(el);
+}
+function genHistory(cfg){
+  const arr=[];let p=cfg.base*(1+(Math.random()-.5)*.02);
+  const end=Math.floor(Date.now()/1000/DUR)*DUR;
+  for(let i=140;i>0;i--){
+    const t=end-i*DUR,o=p;let h=o,l=o,c=o;
+    for(let s=0;s<6;s++){c=c*(1+(Math.random()-.5)*cfg.vol*2.4);h=Math.max(h,c);l=Math.min(l,c)}
+    arr.push({time:t,open:o,high:h,low:l,close:c,vol:300+Math.random()*1500});p=c;
+  }
+  S.mkt[cfg.sym].p=arr[arr.length-1].close;   // sync live price with chart seed
+  return arr;
+}
+function selectPair(sym,focusId){
+  if(!CFG[sym])return;
+  chartCfg=CFG[sym];S.selSym=focusId||null;
+  $('#pairSelect').value=sym;
+  $('#chPair').textContent=chartCfg.sym;
+  const isOTC=PAIRS.OTC.includes(chartCfg),b=$('#chMarket');
+  b.textContent=isOTC?'OTC':'CRYPTO';b.className='badge '+(isOTC?'otc':'crypto');
+  if(HAS_LWC&&chart){
+    cSeries.applyOptions({priceFormat:{type:'price',precision:chartCfg.dp,minMove:Math.pow(10,-chartCfg.dp)}});
+    const hist=histCache[sym]||(histCache[sym]=genHistory(chartCfg));
+    cSeries.setData(hist);
+    vSeries.setData(hist.map(k=>({time:k.time,value:k.vol,color:k.close>=k.open?'rgba(15,227,155,.25)':'rgba(255,59,92,.25)'})));
+    candleStart=hist[hist.length-1].time;prevClose=hist[hist.length-2].close;
+    const p=S.mkt[sym].p;
+    cur={time:candleStart,open:p,high:p,low:p,close:p};
+    curVol={time:candleStart,value:200,color:'rgba(15,227,155,.25)'};
+  }
+  chartHeader();
+  $$('.sig').forEach(e=>e.classList.toggle('sel',e.dataset.id===S.selSym));
+}
+function chartTick(){
+  if(!chartCfg)return;
+  const sym=chartCfg.sym,p=S.mkt[sym].p,nowS=Math.floor(Date.now()/1000);
+  if(HAS_LWC&&cur){
+    if(nowS>=candleStart+DUR){
+      cSeries.update(cur);vSeries.update(curVol);
+      prevClose=cur.close;
+      candleStart=Math.floor(nowS/DUR)*DUR;
+      cur={time:candleStart,open:p,high:p,low:p,close:p};
+      curVol={time:candleStart,value:150+Math.random()*300,color:'rgba(15,227,155,.25)'};
+    }else{
+      cur.close=p;cur.high=Math.max(cur.high,p);cur.low=Math.min(cur.low,p);
+      curVol.value+=Math.random()*40;
+      curVol.color=cur.close>=cur.open?'rgba(15,227,155,.25)':'rgba(255,59,92,.25)';
+    }
+    cSeries.update(cur);vSeries.update(curVol);
+  }
+  chartHeader();
+  $('#candleCd').textContent=p2(Math.max(0,candleStart+DUR-nowS))+'s';
+}
+function chartHeader(){
+  if(!chartCfg)return;
+  const sym=chartCfg.sym,p=S.mkt[sym].p,el=$('#chPrice');
+  if(el.textContent!==fmtPrice(p,chartCfg.dp)){
+    const prev=parseFloat(el.dataset.v||p),up=p>=prev;
+    el.dataset.v=p;el.textContent=fmtPrice(p,chartCfg.dp);
+    if(!REDUCED){el.classList.remove('fu','fd');void el.offsetWidth;el.classList.add(up?'fu':'fd')}
+  }
+  const pct=prevClose?(p/prevClose-1)*100:0,ch=$('#chChange');
+  ch.textContent=(pct>=0?'+':'')+pct.toFixed(3)+'%';
+  ch.className='font-mono text-[11px] '+(pct>=0?'text-call':'text-put');
+}
+
+/* ── SETTINGS (slider · sound · persistence · API sync) ────────── */
+const thr=$('#thr'),snd=$('#snd');
+function paintSlider(){thr.style.setProperty('--fill',((thr.value-50)/45*100)+'%');$('#thrVal').textContent=thr.value}
+thr.addEventListener('input',()=>{S.settings.threshold=+thr.value;paintSlider();saveSettings();renderPass()});
+snd.addEventListener('change',()=>{S.settings.sound=snd.checked;if(snd.checked)chime('CALL');saveSettings()});
+$('#beepTest').addEventListener('click',()=>chime('CALL'));
+let saveT=null;
+function saveSettings(){
+  localStorage.setItem('aq-settings',JSON.stringify(S.settings));
+  $('#syncNote').textContent='SYNCING…';
+  clearTimeout(saveT);
+  saveT=setTimeout(async()=>{
+    if(S.mode==='live'||S.wsLive){
+      try{await fetch(API.settings,{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({confidenceThreshold:S.settings.threshold,soundAlerts:S.settings.sound})});
+        $('#syncNote').textContent='SYNCED ✓';$('#h2').textContent='LIVE';$('#h2').className=chipCls('ok');return}catch(e){}
+    }
+    $('#syncNote').textContent='LOCAL';
+  },700);
+}
+async function loadSettings(){
+  try{const l=JSON.parse(localStorage.getItem('aq-settings')||'{}');
+    if(Number.isFinite(+l.threshold))S.settings.threshold=clamp(+l.threshold,50,95);
+    if(typeof l.sound==='boolean')S.settings.sound=l.sound}catch(e){}
+  try{ // adopt engine-side settings when reachable
+    const res=await fetch(API.settings,{cache:'no-store'});
+    if(res.ok){const d=await res.json();const s=d.settings||d;
+      if(Number.isFinite(+s.confidenceThreshold))S.settings.threshold=clamp(+s.confidenceThreshold,50,95);
+      if(typeof s.soundAlerts==='boolean')S.settings.sound=s.soundAlerts;
+      $('#h2').textContent='LIVE';$('#h2').className=chipCls('ok');$('#h2lat').textContent='GET ok'}
+  }catch(e){}
+  thr.value=S.settings.threshold;snd.checked=S.settings.sound;paintSlider();
+}
+
+/* ── STATS PANEL ────────────────────────────────────────────────── */
+function updateStats(){
+  const st=S.stats,total=st.wins+st.losses;
+  const wr=st.winRateOverride??(total?st.wins/total*100:0);
+  $('#stWinrate').textContent=wr.toFixed(1)+'%';
+  $('#stSignals').textContent=st.total;
+  $('#stStreak').textContent=st.streak===0?'—':(st.streak>0?'W×'+st.streak:'L×'+(-st.streak));
+  $('#stStreak').className='font-semibold '+(st.streak>0?'text-call':st.streak<0?'text-put':'text-paper');
+  $('#sWins').textContent=st.wins;$('#sLoss').textContent=st.losses;
+  const act=[...S.signals.values()].filter(s=>s.phase==='active');
+  const avg=act.length?act.reduce((a,s)=>a+s.confidence,0)/act.length:0;
+  $('#sConf').textContent=avg?avg.toFixed(0)+'%':'--';
+  $('#wrRing').style.strokeDashoffset=213.6*(1-clamp(wr,0,100)/100);
+}
+
+/* ── TABS & SEARCH ─────────────────────────────────────────────── */
+$$('#tabs .tab').forEach(b=>b.addEventListener('click',()=>{
+  $$('#tabs .tab').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+  S.tab=b.dataset.tab;renderPass();
+}));
+$('#search').addEventListener('input',e=>{S.q=e.target.value.trim().toLowerCase();renderPass()});
+
+/* ── BOOT ───────────────────────────────────────────────────────── */
+(function boot(){
+  const sel=$('#pairSelect');
+  ['CRYPTO','OTC'].forEach(m=>{
+    const g=document.createElement('optgroup');g.label=m==='CRYPTO'?'CRYPTO · BINANCE':'OTC PAIRS';
+    PAIRS[m].forEach(c=>{const o=document.createElement('option');o.value=c.sym;o.textContent=c.sym;g.appendChild(o)});
+    sel.appendChild(g);
+  });
+  sel.addEventListener('change',()=>selectPair(sel.value));
+  if(!REDUCED) $$('.decode').forEach((el,i)=>setTimeout(()=>decode(el),150+i*120));
+  initChart();
+  loadSettings();
+  selectPair('BTC/USDT');
+  tryWS();
+  updateTicker();
+  loop();
+  setTimeout(()=>{ if(S.mode==='connecting'){startSim();toast('info','SIMULATED FEED ACTIVE','No engine detected at '+ (API_BASE||location.origin||'local') + ' — set API_BASE to link your Render backend.')}},FAIL_TO_SIM*POLL_MS+500);
+  setInterval(async()=>{ // periodic settings-endpoint health probe
+    try{const t0=performance.now();const r=await fetch(API.settings,{method:'GET',cache:'no-store'});
+      if(r.ok){$('#h2').textContent='LIVE';$('#h2').className=chipCls('ok');$('#h2lat').textContent=Math.round(performance.now()-t0)+'ms'}}catch(e){}
+  },15000);
+})();
 </script>
 </body>
 </html>
