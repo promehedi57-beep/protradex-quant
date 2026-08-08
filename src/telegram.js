@@ -1,217 +1,121 @@
 'use strict';
+/* telegram.js — secure Telegram bridge (defensive ID parsing, never throws).
+   Env: TELEGRAM_BOT_TOKEN, TELEGRAM_ALLOWED_CHAT_IDS, TELEGRAM_ADMIN_IDS,
+        TELEGRAM_BROADCAST_TARGETS, TELEGRAM_ALERTS_ENABLED                */
+const APIG = 'https://api.telegram.org';
 
-/**
- * src/telegram.js
- * 2-way Telegram bot via long polling (fetch-based, Render-safe).
- * STRICT ACCESS: only cfg.TELEGRAM_ALLOWED_CHAT_IDS may issue commands.
- * Empty whitelist ⇒ every command refused (secure-by-default).
- * /alerts toggles notifications only — dashboard/signals keep running regardless.
- * /broadcast is admin-only (cfg.TELEGRAM_ADMIN_IDS).
- */
+function parseIds(raw) {
+  const set = new Set();
+  if (raw == null) return set;
+  String(raw).split(/[\s,;|\/]+/).forEach(tok => {
+    const t = tok.trim(); if (!t) return;
+    const n = Number(t);
+    set.add(Number.isFinite(n) && Math.abs(n) <= Number.MAX_SAFE_INTEGER ? String(n) : t);
+  });
+  return set;
+}
+const clamp = (n, a, b) => Math.max(a, Math.min(b, Number(n) || 0));
 
-const cfg = require('./config');
-const rt = require('./state');
+function createTelegram(opts = {}) {
+  const token = opts.token || process.env.TELEGRAM_BOT_TOKEN || '';
+  const ALLOWED = parseIds(opts.allowed ?? process.env.TELEGRAM_ALLOWED_CHAT_IDS);
+  const ADMINS  = parseIds(opts.admins  ?? process.env.TELEGRAM_ADMIN_IDS);
+  const TARGETS = parseIds(opts.targets ?? process.env.TELEGRAM_BROADCAST_TARGETS);
+  let alerts   = (opts.alertsEnabled ?? process.env.TELEGRAM_ALERTS_ENABLED) === 'true';
+  const timeout = opts.timeout || 9000;
 
-const BASE = 'https://api.telegram.org/bot';
+  if (!token) return { enabled: false, error: 'TELEGRAM_BOT_TOKEN missing',
+    sendMessage: async () => ({ ok:false }), shareSignal: async () => ({ ok:false }),
+    testAlert: async () => ({ ok:false }), onUpdate: async () => ({ ok:false, handled:false }) };
 
-class TelegramBot {
-  constructor({ metrics, engine, rt: runtime }) {
-    this.metrics = metrics;
-    this.engine = engine;
-    this.rt = runtime;
-    this.token = cfg.TELEGRAM_BOT_TOKEN;
-    this.allowed = cfg.TELEGRAM_ALLOWED_CHAT_IDS;
-    this.admins = cfg.TELEGRAM_ADMIN_IDS;
-    this.targets = cfg.TELEGRAM_BROADCAST_TARGETS.length ? cfg.TELEGRAM_BROADCAST_TARGETS : this.allowed;
-    this.alerts = rt.getAlerts();
-    this._offset = 0;
-    this._stop = false;
-    this._pollTimer = null;
-    this._me = null;
-    this._abort = null;
-  }
-
-  api(method, payload = {}) {
-    return fetch(`${BASE}${this.token}/${method}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }).then(async (r) => ({ ok: r.ok, code: r.status, json: await r.json().catch(() => ({})) }));
-  }
-
-  hasToken() { return !!this.token; }
-
-  async start() {
-    if (!this.hasToken()) { console.warn('[tg] no TELEGRAM_BOT_TOKEN — bot disabled'); return; }
+  async function call(method, body) {
+    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), timeout);
     try {
-      const me = await this.api('getMe');
-      if (!me.ok) throw new Error('getMe failed ' + me.code);
-      this._me = me.json.result?.username;
-      console.log(`[tg] bot @${this._me} · allowed=${this.allowed.length} · alerts=${this.alerts}`);
-      this._poll();
-    } catch (e) { console.error('[tg] start failed:', e.message); }
+      const r = await fetch(`${APIG}/bot${token}/${method}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body), signal: ctl.signal });
+      const j = await r.json().catch(() => ({}));
+      return j.ok ? { ok: true, result: j.result } : { ok: false, code: j.error_code, desc: j.description };
+    } finally { clearTimeout(t); }
   }
 
-  async _request(doAbort = true) {
-    const ctrl = new AbortController();
-    this._abort = ctrl;
-    const to = new AbortController();
-    const tId = setTimeout(() => { ctrl.abort(); }, (cfg.TELEGRAM_POLL_TIMEOUT || 30) * 1000 + 3000);
-    try {
-      const res = await fetch(`${BASE}${this.token}/getUpdates`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ timeout: cfg.TELEGRAM_POLL_TIMEOUT || 30, offset: this._offset }),
-        signal: ctrl.signal,
-      });
-      clearTimeout(tId);
-      if (!res.ok) return { ok: false, code: res.status };
-      return { ok: true, json: await res.json() };
-    } catch (e) {
-      clearTimeout(tId);
-      return { ok: false, error: e, aborted: e?.name === 'AbortError' };
+  async function sendMessage(chatId, text, extra = {}) {
+    if (chatId == null || text == null) return { ok: false, sent: false, error: 'no chat/text' };
+    const out = await call('sendMessage', {
+      chat_id: Number(chatId) || chatId, text, parse_mode: 'HTML',
+      disable_web_page_preview: true, ...extra });
+    return { ok: out.ok, sent: out.ok, error: out.desc, ...out };
+  }
+
+  function fmtSignal(s) {
+    const dir = String(s.direction || '').toUpperCase() === 'PUT' ? '▼ PUT' : '▲ CALL';
+    const market = String(s.market || 'CRYPTO').toUpperCase();
+    const pair = String(s.pair || s.symbol || '?');
+    const conf = clamp(s.confidence ?? 0, 0, 100), rsi = clamp(s.rsi ?? 50, 0, 100);
+    const sec = Math.max(5, Number(s.candleTime ?? s.timeframe_sec ?? 60) || 60);
+    const price = Number(s.entryPrice ?? s.entry ?? s.price ?? 0);
+    const dp = Number.isFinite(+s.dp) ? +s.dp : (/OTC/i.test(pair + market) ? 5 : 2);
+    const when = s.timestamp ? new Date(s.timestamp).toISOString().replace('T', ' ').slice(0, 19) + ' UTC' : '';
+    const t = sec >= 3600 ? `${sec/3600}h` : sec >= 60 ? `${sec/60}m` : `${sec}s`;
+    return ['⚡ APEX//QUANT SIGNAL', `${pair} · ${market} · ${t}`,
+      `${dir} @ ${Number(price).toFixed(dp)}`, `Confidence ${conf}% · RSI ${rsi.toFixed(1)}`, when]
+      .filter(Boolean).join('\n');
+  }
+
+  async function shareSignal(sig) {
+    const to = parseIds(sig?.targets).size ? parseIds(sig.targets) : TARGETS;
+    if (!to.size) return { ok:false, sent:false, error:'no broadcast targets (TELEGRAM_BROADCAST_TARGETS)' };
+    if (!alerts) return { ok:false, sent:false, error:'TELEGRAM_ALERTS_ENABLED=false', skipped:true };
+    const text = fmtSignal(sig), results = [];
+    for (const chat of to) results.push(await sendMessage(chat, text));
+    const ok = results.every(r => r.ok);
+    return { ok, sent: ok, sentTo: to.size, results };
+  }
+
+  async function testAlert(msg) {
+    const to = TARGETS.size ? TARGETS : ALLOWED;
+    if (!to.size) return { ok:false, sent:false, error:'no targets' };
+    return sendMessage([...to][0], msg || '✅ APEX//QUANT — test alert OK');
+  }
+
+  async function onUpdate(update) {
+    const m = update?.message; if (!m) return { ok:false, handled:false };
+    const chatId = String(m.chat?.id), fromId = String(m.from?.id);
+    const allowed = ALLOWED.has(chatId) || ALLOWED.has(fromId);
+    const admin   = ADMINS.has(chatId)  || ADMINS.has(fromId);
+    if (!allowed) { await sendMessage(chatId, '⛔ Access denied.'); return { ok:false, handled:true, denied:true }; }
+    const txt  = String(m.text || '').trim();
+    const cmd  = (txt.split(/\s+/) || [''])[0];
+    if (cmd === '/start')   { await sendMessage(chatId, '👋 APEX//QUANT online.'); return { ok:true, handled:true }; }
+    if (cmd === '/health' || cmd === '/status') { await sendMessage(chatId, '✅ Engine OK'); return { ok:true, handled:true }; }
+    if (cmd === '/alerts') {
+      if (!admin) { await sendMessage(chatId, '⛔ Admin only.'); return { ok:false, handled:true }; }
+      alerts = !alerts; await sendMessage(chatId, `🔔 Auto alerts: ${alerts ? 'ON' : 'OFF'}`);
+      return { ok:true, handled:true };
     }
-  }
-
-  async _poll() {
-    while (!this._stop) {
-      const res = await this._request();
-      if (!res.ok) {
-        if (res.aborted) { continue; }                    // timeout → loop forever (normal)
-        console.error('[tg] poll err', res.code || (res.error && res.error.message));
-        await new Promise(r => setTimeout(r, 5000));      // backoff, avoid hammering Telegram
-        continue;
-      }
-      const updates = res.json?.result || [];
-      for (const u of updates) {
-        this._offset = u.update_id + 1;                    // ack
-        try { await this._handleUpdate(u); } catch (e) { console.error('[tg] update', e.message); }
-      }
+    if (cmd === '/broadcast') {
+      if (!admin) { await sendMessage(chatId, '⛔ Admin only.'); return { ok:false, handled:true }; }
+      const out = await testAlert('💬 Broadcast test'); await sendMessage(chatId, out.sent ? '📡 Broadcast OK' : '❌ Broadcast failed');
+      return { ok:true, handled:true };
     }
+    return { ok:true, handled:false };
   }
 
-  _handleUpdate(u) {
-    if (u.callback_query)    return this._onCallback(u.callback_query);
-    if (u.message?.text)     return this._onMessage(u.message);
+  let poll = null;
+  function startPolling({ pollMs = 1500, useWebhook = false } = {}) {
+    if (useWebhook || poll) return; let offset = 0;
+    const tick = async () => {
+      const r = await fetch(`${APIG}/bot${token}/getUpdates?timeout=25&offset=${offset}`).catch(() => null);
+      if (!r) return; const j = await r.json().catch(() => ({}));
+      if (!j.ok || !Array.isArray(j.result)) return;
+      for (const u of j.result) { offset = u.update_id + 1; await onUpdate(u); }
+    };
+    poll = setInterval(async () => { try { await tick(); } catch (_) {} }, pollMs);
+    if (poll.unref) poll.unref();
   }
 
-  _authorized(chatId) {
-    if (!this.allowed.length) return false;               // secure-by-default
-    return this.allowed.includes(String(chatId));
-  }
-
-  _send(chatId, text, keyboard) {
-    const payload = { chat_id: chatId, text, parse_mode: 'Markdown' };
-    if (keyboard) payload.reply_markup = { inline_keyboard: keyboard };
-    return this.api('sendMessage', payload).then(r => { if (!r.ok) console.error('[tg] send', r.code, JSON.stringify(r.json).slice(0, 200)); });
-  }
-
-  _answer(qid, text) { return this.api('answerCallbackQuery', { callback_query_id: qid, text }); }
-
-  _keyboard(chatId) {
-    const isAdmin = this.admins.includes(String(chatId));
-    const exec = this.rt.getExecution() ? 'LIVE' : 'PAPER';
-    return [
-      [{ text: '📊 Status', callback_data: 'status' }, { text: '🧾 Active Pairs', callback_data: 'pairs' }],
-      [{ text: `⚡ Execution: ${exec} (toggle)`, callback_data: 'exec' }],
-      [{ text: '✓ Alerts: ' + (this.alerts ? 'ON' : 'OFF'), callback_data: 'alerts' }],
-      [{ text: 'Conf −5', callback_data: 'conf:-5' }, { text: 'Conf +5', callback_data: 'conf:+5' }],
-      ...(isAdmin ? [[{ text: '📢 Broadcast…', callback_data: 'broadcast' }]] : []),
-    ];
-  }
-
-  _statusText() {
-    const s = this.engine.status();
-    return [
-      '*ProTradeX · Live*',
-      '',
-      `⏱ Uptime: ${Math.floor(s.uptime / 60)}m ${s.uptime % 60}s`,
-      `🟢 Pairs: ${s.pairs}`,
-      `🟢 Signals: ${s.signals_total ?? 0}`,
-      `⚙ Mode: ${this.rt.getExecution() ? 'LIVE (REAL)' : 'PAPER (DRY-RUN)'}`,
-      `🎚 Confidence floor: ${this.rt.getConfidence()}%`,
-      `🔔 Alerts: ${this.alerts ? 'ON' : 'OFF'}`,
-      `🕒 TF active: ${s.timeframe}m · tfs: ${(s.tfs||[]).join('/')}`,
-    ].join('\n');
-  }
-
-  _pairsText() {
-    const rows = this.engine.getPairsSnapshot(12)
-      .map((p, i) => `${i + 1}. ${p.symbol} · ${p.price} · ${p.zscore}σ · ${p.confidence}% · ${p.signal}`)
-      .join('\n');
-    return rows || '_no pairs yet_';
-  }
-
-  async _onMessage(m) {
-    const from = m.chat?.id?.toString();
-    if (typeof from === 'undefined') return;
-    if (!this._authorized(from)) { this._send(from, '⛔ Unauthorized — this bot is restricted.'); return; }
-    const t = (m.text || '').trim();
-
-    if (t === '/start') return this._send(from, 'Welcome. Tap a button or use a command.', this._keyboard(from));
-    if (t === '/status') return this._send(from, this._statusText());
-    if (t === '/pairs')  return this._send(from, this._pairsText());
-    if (t === '/exec')   { const n = !this.rt.getExecution(); this.rt.setExecution(n); return this._send(from, `Execution → ${n ? 'LIVE' : 'PAPER'}`); }
-    if (t.startsWith('/conf')) {
-      const v = parseInt(t.replace(/[^0-9-]/g, ''), 10);
-      if (Number.isFinite(v)) this.rt.setConfidence(this.rt.getConfidence() + v);
-      return this._send(from, `Confidence floor → ${this.rt.getConfidence()}%`);
-    }
-    if (t === '/alerts') {
-      if (!this.admins.includes(from)) return this._send(from, '⛔ Admins only.');
-      const n = !this.alerts; this.alerts = n; this.rt.setAlerts(n);
-      return this._send(from, `Alerts → ${n ? 'ON' : 'OFF'} · dashboard signals unaffected.`);
-    }
-    if (t.startsWith('/broadcast ')) {
-      if (!this.admins.includes(from)) return this._send(from, '⛔ Admins only.');
-      const msg = t.slice('/broadcast '.length).trim();
-      if (!msg) return this._send(from, 'Usage: /broadcast <text>');
-      for (const c of this.targets) await this._send(c, msg).catch(()=>{});
-      return this._send(from, `Broadcast sent to ${this.targets.length} target(s).`);
-    }
-    return this._send(from, 'Unknown command.', this._keyboard(from));
-  }
-
-  async _onCallback(cq) {
-    const from = cq.message?.chat?.id?.toString();
-    const data = cq.data || '';
-    if (!from || !this._authorized(from)) { await this._answer(cq.id, '⛔ unauthorized'); return; }
-    await this._answer(cq.id, '');
-
-    if (data === 'status') return this._edit(cq, this._statusText());
-    if (data === 'pairs')  return this._edit(cq, this._pairsText());
-    if (data === 'exec')   { const n = !this.rt.getExecution(); this.rt.setExecution(n); return this._edit(cq, this._statusText()); }
-    if (data === 'alerts') {
-      if (!this.admins.includes(from)) return this._send(from, '⛔ Admins only.');
-      this.alerts = !this.alerts; this.rt.setAlerts(this.alerts);
-      return this._edit(cq, this._statusText());
-    }
-    if (data.startsWith('conf:')) {
-      const d = parseInt(data.slice(5), 10);
-      if (Number.isFinite(d)) this.rt.setConfidence(this.rt.getConfidence() + d);
-      return this._edit(cq, this._statusText());
-    }
-    if (data === 'broadcast') return this._send(from, 'Use /broadcast <text> (admins only).');
-  }
-
-  _edit(cq, text) {
-    return this.api('editMessageText', {
-      chat_id: cq.message.chat.id, message_id: cq.message.message_id,
-      text, parse_mode: 'Markdown', reply_markup: { inline_keyboard: this._keyboard(cq.message.chat.id) },
-    });
-  }
-
-  /* signal notification — runs ONLY when alerts enabled */
-  async notify(sig) {
-    if (!this.alerts || !this.targets.length) return;
-    const dir = sig.sig === 'CALL' ? '📈' : sig.sig === 'PUT' ? '📉' : '➡';
-    const msg = `${dir} *${sig.symbol}*\nSignal: ${sig.sig} · ${sig.confidence}%\nZ ${sig.zscore} · RSI ${sig.rsi}\n@ ${sig.price}`;
-    for (const c of this.targets) await this._send(c, msg).catch(()=>{});
-  }
-
-  setAlerts(v) { this.alerts = !!v; }
-
-  async stop() { this._stop = true; if (this._abort) this._abort.abort(); if (this._pollTimer) clearTimeout(this._pollTimer); }
+  return { enabled: true, token, ALLOWED, ADMINS, TARGETS, alerts,
+    sendMessage, shareSignal, testAlert, onUpdate, fmtSignal, startPolling };
 }
 
-module.exports = { TelegramBot };
+module.exports = { createTelegram, parseIds };
