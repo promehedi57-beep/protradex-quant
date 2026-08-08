@@ -1,827 +1,259 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>QX·01 — Quant Trading Terminal</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23022c22'/><text x='8' y='12' font-size='10' text-anchor='middle' fill='%2334d399' font-family='monospace'>Q</text></svg>">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ProTradeX · Quantum Terminal</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<script>
-  tailwind.config = {
-    theme: { extend: { fontFamily: {
-      display: ['"Space Grotesk"','ui-sans-serif','system-ui','sans-serif'],
-      mono:    ['"JetBrains Mono"','ui-monospace','SFMono-Regular','monospace']
-    }}}
-  };
-</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  :root{color-scheme:dark}
-  html{scrollbar-color:#334155 #0f172a}
-  body{background:#020617}
-  ::selection{background:rgba(16,185,129,.3)}
-
-  /* layered ambient background */
-  .bg-grid{
-    background-image:
-      linear-gradient(rgba(148,163,184,.05) 1px,transparent 1px),
-      linear-gradient(90deg,rgba(148,163,184,.05) 1px,transparent 1px);
-    background-size:36px 36px;
-  }
-
-  /* components */
-  .panel{background:linear-gradient(180deg,rgba(30,41,59,.5),rgba(15,23,42,.72));border:1px solid #1e293b;border-radius:10px}
-  .chip{display:inline-flex;align-items:center;gap:.45rem;padding:.4rem .65rem;border:1px solid #1e293b;border-radius:6px;background:rgba(15,23,42,.7);color:#64748b;letter-spacing:.08em;white-space:nowrap}
-  .dot{width:7px;height:7px;border-radius:9999px;display:inline-block;flex:none}
-  .num{font-variant-numeric:tabular-nums}
-  thead th{position:sticky;top:0;z-index:10;background:rgba(15,23,42,.96);backdrop-filter:blur(6px)}
-
-  /* motion */
-  @keyframes sync{0%{width:0;opacity:.9}100%{width:100%;opacity:.25}}
-  .syncbar{animation:sync 2s linear infinite}
-
-  @keyframes tape{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
-  .animate-tape{animation:tape 60s linear infinite}
-  .animate-tape:hover{animation-play-state:paused}
-
-  .flash-up{animation:fup .9s ease-out}
-  @keyframes fup{0%{background:rgba(16,185,129,.22);color:#a7f3d0}100%{background:transparent}}
-  .flash-down{animation:fdn .9s ease-out}
-  @keyframes fdn{0%{background:rgba(244,63,94,.22);color:#fecdd3}100%{background:transparent}}
-
-  .dot-live{animation:ping 2.2s cubic-bezier(0,0,.2,1) infinite}
-  @keyframes ping{0%{box-shadow:0 0 0 0 rgba(52,211,153,.5)}75%,100%{box-shadow:0 0 0 6px rgba(52,211,153,0)}}
-
-  @keyframes rise{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
-  .rise{animation:rise .35s ease-out}
-  @keyframes toastIn{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}
-  .toast{animation:toastIn .25s ease-out}
-
-  /* scrollbars */
-  ::-webkit-scrollbar{width:9px;height:9px}
-  ::-webkit-scrollbar-track{background:transparent}
-  ::-webkit-scrollbar-thumb{background:#1e293b;border-radius:8px;border:2px solid #020617}
-  ::-webkit-scrollbar-thumb:hover{background:#334155}
-
-  /* threshold slider */
-  input[type=range]{-webkit-appearance:none;appearance:none;height:18px;background:transparent;cursor:pointer}
-  input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(90deg,#065f46,#1e293b)}
-  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;height:14px;width:14px;border-radius:9999px;background:#34d399;border:2px solid #022c22;margin-top:-5px;box-shadow:0 0 10px rgba(52,211,153,.55)}
-  input[type=range]::-moz-range-track{height:4px;border-radius:2px;background:#1e293b}
-  input[type=range]::-moz-range-thumb{height:14px;width:14px;border-radius:9999px;background:#34d399;border:2px solid #022c22}
+:root{color-scheme:dark}
+body{background:#020617;font-family:'Space Grotesk',sans-serif}
+.mono{font-family:'JetBrains Mono',monospace}
+.panel{background:linear-gradient(180deg,rgba(30,41,59,.5),rgba(15,23,42,.72));border:1px solid #1e293b;border-radius:12px}
+.num{font-variant-numeric:tabular-nums}
+::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:#1e293b;border-radius:8px}
+.sidebar{transition:transform .25s ease;transform:translateX(-100%)}
+.sidebar.open{transform:translateX(0)}
+@keyframes fup{0%{background:rgba(16,185,129,.22)}100%{background:transparent}}
+@keyframes fdn{0%{background:rgba(244,63,94,.22)}100%{background:transparent}}
+.fup{animation:fup .8s ease-out}.fdn{animation:fdn .8s ease-out}
+@keyframes ping{0%{box-shadow:0 0 0 0 rgba(52,211,153,.5)}75%,100%{box-shadow:0 0 0 6px rgba(52,211,153,0)}}
+.dot-live{animation:ping 2.2s cubic-bezier(0,0,.2,1) infinite}
 </style>
 </head>
+<body class="min-h-screen text-slate-300 antialiased">
 
-<body class="min-h-screen bg-slate-950 font-display text-slate-300 antialiased">
-
-<!-- ambient layers -->
-<div class="pointer-events-none fixed inset-0 z-0" aria-hidden="true">
-  <div class="bg-grid absolute inset-0 opacity-60"></div>
-  <div class="absolute -top-32 left-1/3 h-72 w-[38rem] -translate-x-1/2 rounded-full bg-emerald-500/[.06] blur-[110px]"></div>
-  <div class="absolute -bottom-40 right-[-6rem] h-80 w-[34rem] rounded-full bg-cyan-500/[.05] blur-[110px]"></div>
-</div>
-
-<!-- ══════════ STATUS HEADER ══════════ -->
-<header class="sticky top-0 z-40 border-b border-slate-800/80 bg-slate-950/85 backdrop-blur">
-  <div class="mx-auto flex max-w-[1600px] flex-wrap items-center gap-x-5 gap-y-3 px-3 py-3 sm:px-5 lg:px-8">
-    <div class="flex items-center gap-3">
-      <div class="relative grid h-10 w-10 flex-none place-items-center border border-emerald-400/40 bg-emerald-400/[.06]">
-        <span class="font-mono text-sm font-bold text-emerald-300">QX</span>
-        <i class="absolute -left-px -top-px h-2 w-2 border-l border-t border-emerald-300/90"></i>
-        <i class="absolute -right-px -top-px h-2 w-2 border-r border-t border-emerald-300/90"></i>
-        <i class="absolute -bottom-px -left-px h-2 w-2 border-b border-l border-emerald-300/90"></i>
-        <i class="absolute -bottom-px -right-px h-2 w-2 border-b border-r border-emerald-300/90"></i>
-      </div>
-      <div>
-        <h1 class="font-display text-base font-bold leading-none tracking-[.18em] text-slate-100">QUANT<span class="text-emerald-400">TERMINAL</span></h1>
-        <p class="mt-1 font-mono text-[10px] leading-none tracking-[.22em] text-slate-500">CRYPTO SIGNAL ENGINE · v2.4.1</p>
-      </div>
-      <span id="feedBadge" class="ml-1 hidden rounded-sm border border-amber-400/50 bg-amber-400/10 px-2 py-1 font-mono text-[9px] font-semibold tracking-[.2em] text-amber-300 sm:inline-block">SIM FEED</span>
+<!-- ── Header ── -->
+<header class="sticky top-0 z-40 border-b border-slate-800 bg-slate-950/90 backdrop-blur">
+  <div class="mx-auto flex max-w-[1600px] items-center gap-4 px-4 py-3">
+    <button id="menuBtn" class="grid h-9 w-9 place-items-center rounded border border-slate-700 hover:border-emerald-400/60" title="Menu">
+      <span class="flex flex-col gap-[5px]"><i class="h-0.5 w-4 bg-slate-300"></i><i class="h-0.5 w-4 bg-slate-300"></i><i class="h-0.5 w-4 bg-slate-300"></i></span>
+    </button>
+    <div>
+      <h1 class="text-base font-bold tracking-[.18em] text-slate-100">PROTRADE<span class="text-emerald-400">X</span></h1>
+      <p class="mono text-[10px] tracking-[.2em] text-slate-500">QUANTUM BINARY ENGINE · v5</p>
     </div>
-
-    <div class="ml-auto flex flex-wrap items-center gap-2 font-mono text-[11px]">
-      <div class="chip">UPTIME <b id="uptimeVal" class="num text-slate-200">—</b></div>
-      <div class="chip"><span id="binDot" class="dot bg-emerald-400 dot-live"></span>BINANCE <b id="binTxt" class="font-semibold text-emerald-300">LIVE</b></div>
-      <div class="chip"><span id="oaDot" class="dot bg-emerald-400 dot-live"></span>OANDA <b id="oaTxt" class="font-semibold text-emerald-300">LIVE</b></div>
-      <div class="chip">SIGNALS <b id="sigTotal" class="num font-semibold text-emerald-300">0</b></div>
-      <div class="chip hidden md:inline-flex"><b id="utcClock" class="num text-slate-200">--:--:--</b>&nbsp;UTC</div>
+    <div class="ml-auto flex flex-wrap items-center gap-2 mono text-[11px]">
+      <span id="gemBtn" class="cursor-pointer rounded border border-violet-400/40 bg-violet-400/10 px-2.5 py-1 text-violet-300 hover:bg-violet-400/20">⚡ AI KEY</span>
+      <span class="rounded border border-slate-700 px-2.5 py-1"><span id="binDot" class="mr-1 inline-block h-2 w-2 rounded-full bg-slate-600"></span>BIN</span>
+      <span class="rounded border border-slate-700 px-2.5 py-1"><span id="fxDot" class="mr-1 inline-block h-2 w-2 rounded-full bg-slate-600"></span>FX</span>
+      <span class="rounded border border-slate-700 px-2.5 py-1"><span id="otcDot" class="mr-1 inline-block h-2 w-2 rounded-full bg-slate-600"></span>OTC</span>
+      <span class="rounded border border-slate-700 px-2.5 py-1">SIG <b id="sigT" class="num text-emerald-300">0</b></span>
+      <span class="hidden md:inline-block rounded border border-slate-700 px-2.5 py-1"><b id="upT" class="num">—</b>s</span>
     </div>
   </div>
-  <div class="relative h-px bg-slate-800/80"><div class="syncbar absolute inset-y-0 left-0 bg-emerald-400/80"></div></div>
 </header>
 
-<!-- ticker tape -->
-<div class="relative z-10 overflow-hidden border-b border-slate-800/80 bg-slate-900/50">
-  <div id="tape" class="animate-tape flex w-max py-1.5"></div>
-</div>
+<!-- ── Sidebar ── -->
+<nav id="sidebar" class="sidebar fixed left-0 top-0 z-50 h-full w-72 border-r border-slate-800 bg-slate-950/95 p-4 backdrop-blur">
+  <div class="flex items-center justify-between"><span class="mono text-xs tracking-widest text-slate-400">NAVIGATION</span>
+    <button id="closeMenu" class="rounded border border-slate-700 px-2 py-1 text-slate-400 hover:text-rose-300">✕</button></div>
+  <div class="mt-5 space-y-1.5 text-sm">
+    <a data-view="quotex" class="nav-item block rounded-lg border border-slate-800 p-3 text-slate-200 hover:border-emerald-400/50 hover:bg-slate-800/40">① Quotex Live Trading</a>
+    <a data-view="pocket" class="nav-item block rounded-lg border border-slate-800 p-3 text-slate-200 hover:border-emerald-400/50 hover:bg-slate-800/40">② Pocket Option Live Trading</a>
+    <a data-view="ai" class="nav-item block rounded-lg border border-slate-800 p-3 text-slate-200 hover:border-emerald-400/50 hover:bg-slate-800/40">③ Chart Analyzer &amp; AI Scanner</a>
+    <a data-view="strategy" class="nav-item block rounded-lg border border-slate-800 p-3 text-slate-200 hover:border-emerald-400/50 hover:bg-slate-800/40">④ Custom Strategy Rules</a>
+    <a data-view="telegram" class="nav-item block rounded-lg border border-slate-800 p-3 text-slate-200 hover:border-emerald-400/50 hover:bg-slate-800/40">⑤ Telegram Alert Manager</a>
+  </div>
+  <div class="absolute bottom-4 left-4 right-4 mono text-[10px] text-slate-600">build 5.0 · © 2026</div>
+</nav>
+<div id="scrim" class="fixed inset-0 z-40 hidden bg-black/50"></div>
 
-<!-- ══════════ MAIN ══════════ -->
-<main class="relative z-10 mx-auto max-w-[1600px] px-3 pb-12 pt-5 sm:px-5 lg:px-8">
-  <div class="grid grid-cols-1 gap-4 xl:grid-cols-12">
-
-    <!-- ── left column ── -->
-    <div class="space-y-6 xl:col-span-8 2xl:col-span-9">
-
-      <!-- 01 · CONTROL PANEL -->
-      <section>
-        <div class="mb-2.5 flex items-center gap-2.5">
-          <span class="h-3.5 w-1 bg-emerald-400"></span>
-          <h2 class="font-mono text-[11px] font-semibold tracking-[.28em] text-slate-400">01 · EXECUTION CONTROLS</h2>
-          <span class="h-px flex-1 bg-slate-800"></span>
-        </div>
-
-        <div class="grid gap-3 md:grid-cols-3">
-          <!-- real execution toggle -->
-          <div class="panel p-4">
-            <div class="flex items-center justify-between">
-              <span class="font-mono text-[10px] tracking-[.22em] text-slate-500">EXECUTION MODE</span>
-              <span id="execChip" class="rounded-sm border border-amber-400/40 bg-amber-400/10 px-1.5 py-0.5 font-mono text-[9px] tracking-widest text-amber-300">PAPER</span>
-            </div>
-            <button id="execBtn" class="mt-3 w-full rounded-md border border-amber-400/50 bg-amber-400/10 px-3 py-3 text-left transition hover:bg-amber-400/15 active:scale-[.99]">
-              <span id="execTitle" class="block font-mono text-sm font-bold tracking-wider text-amber-300">◼ PAPER TRADING</span>
-              <span id="execSub" class="mt-0.5 block font-mono text-[10px] text-slate-500">tap to arm live execution</span>
-            </button>
-            <p id="execNote" class="mt-2.5 font-mono text-[10px] leading-relaxed text-slate-600">Fills are simulated locally. No orders reach the exchange while in paper mode.</p>
-          </div>
-
-          <!-- confidence threshold -->
-          <div class="panel p-4">
-            <div class="flex items-center justify-between">
-              <span class="font-mono text-[10px] tracking-[.22em] text-slate-500">CONFIDENCE THRESHOLD</span>
-              <span class="font-mono text-[9px] text-slate-600">MIN SIGNAL CONF</span>
-            </div>
-            <div class="mt-2 flex items-baseline gap-1">
-              <span id="thrVal" class="num font-mono text-3xl font-bold text-slate-100">75</span>
-              <span class="font-mono text-sm text-slate-500">%</span>
-            </div>
-            <input id="thrRange" type="range" min="50" max="99" value="75" class="mt-2 w-full">
-            <div class="mt-3 flex gap-2">
-              <input id="thrNum" type="number" min="50" max="99" value="75"
-                     class="num w-20 rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 font-mono text-sm text-slate-200 outline-none transition focus:border-emerald-400/60">
-              <button id="thrSave" class="flex-1 rounded-md border border-emerald-400/50 bg-emerald-400/10 font-mono text-xs font-semibold tracking-[.18em] text-emerald-300 transition hover:bg-emerald-400/20 active:scale-[.98]">SAVE</button>
-            </div>
-          </div>
-
-          <!-- search & add -->
-          <div class="panel p-4">
-            <span class="font-mono text-[10px] tracking-[.22em] text-slate-500">SEARCH &amp; ADD PAIR</span>
-            <div class="mt-3 flex gap-2">
-              <div class="relative flex-1">
-                <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-mono text-sm text-slate-600">⌕</span>
-                <input id="searchInput" type="text" placeholder="BTCUSDT…" spellcheck="false" autocomplete="off"
-                       class="w-full rounded-md border border-slate-700 bg-slate-950 py-2.5 pl-8 pr-3 font-mono text-sm text-slate-200 outline-none transition placeholder:text-slate-600 focus:border-emerald-400/60">
-              </div>
-              <button id="searchAdd" title="Add to watchlist"
-                      class="rounded-md border border-slate-600 bg-slate-800/60 px-3.5 font-mono text-lg leading-none text-slate-200 transition hover:border-emerald-400/60 hover:text-emerald-300 active:scale-95">+</button>
-            </div>
-            <p class="mt-2.5 font-mono text-[10px] leading-relaxed text-slate-600">Typing filters the market scanner · <kbd class="rounded border border-slate-700 bg-slate-800 px-1">↵</kbd> adds top match · <kbd class="rounded border border-slate-700 bg-slate-800 px-1">/</kbd> to focus · persisted locally</p>
-          </div>
-        </div>
-      </section>
-
-      <!-- 02 · WATCHLIST -->
-      <section>
-        <div class="mb-2.5 flex items-center gap-2.5">
-          <span class="h-3.5 w-1 bg-emerald-400"></span>
-          <h2 class="font-mono text-[11px] font-semibold tracking-[.28em] text-slate-400">02 · WATCHLIST</h2>
-          <span id="wlCount" class="num font-mono text-[10px] text-slate-600">0</span>
-          <span class="h-px flex-1 bg-slate-800"></span>
-          <span class="hidden font-mono text-[10px] text-slate-600 sm:block">PERSISTED · localStorage</span>
-        </div>
-        <div id="wlGrid" class="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3"></div>
-      </section>
-
-      <!-- 03 · MARKET SCANNER -->
-      <section>
-        <div class="mb-2.5 flex items-center gap-2.5">
-          <span class="h-3.5 w-1 bg-emerald-400"></span>
-          <h2 class="font-mono text-[11px] font-semibold tracking-[.28em] text-slate-400">03 · MARKET SCANNER</h2>
-          <span id="tblCount" class="num font-mono text-[10px] text-slate-600">0/0 PAIRS</span>
-          <span class="h-px flex-1 bg-slate-800"></span>
-          <span class="hidden font-mono text-[10px] text-slate-600 md:block">FILTERED BY SEARCH ⌕</span>
-        </div>
-
-        <div class="panel overflow-hidden">
-          <div class="max-h-[430px] overflow-auto">
-            <table class="w-full min-w-[880px] text-left">
-              <thead class="font-mono text-[10px] tracking-[.18em] text-slate-500">
-                <tr class="border-b border-slate-800">
-                  <th class="px-3 py-2.5 font-medium">#</th>
-                  <th class="px-3 py-2.5 font-medium">PAIR</th>
-                  <th class="px-3 py-2.5 text-right font-medium">LAST</th>
-                  <th class="px-3 py-2.5 text-right font-medium">24H %</th>
-                  <th class="px-3 py-2.5 text-right font-medium">VOLUME</th>
-                  <th class="px-3 py-2.5 text-right font-medium">RSI</th>
-                  <th class="px-3 py-2.5 text-right font-medium">Z-SCORE</th>
-                  <th class="px-3 py-2.5 font-medium">SIGNAL</th>
-                  <th class="px-3 py-2.5 text-right font-medium">CONF</th>
-                  <th class="px-3 py-2.5"></th>
-                </tr>
-              </thead>
-              <tbody id="tblBody" class="font-mono text-xs"></tbody>
-            </table>
-          </div>
-        </div>
-      </section>
+<main class="mx-auto max-w-[1600px] px-4 py-5">
+  <!-- ── View: Trading ── -->
+  <section id="view-trading" class="view">
+    <div class="mb-3 flex flex-wrap items-center gap-2">
+      <div class="flex gap-2 mono text-xs">
+        <button data-market="real" class="mk-tab rounded border border-emerald-400/50 bg-emerald-400/10 px-3 py-1.5 text-emerald-300">REAL MARKET</button>
+        <button data-market="otc" class="mk-tab rounded border border-slate-700 px-3 py-1.5 text-slate-400">OTC MARKET</button>
+      </div>
+      <select id="tfSel" class="mono rounded border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200">
+        <option value="1">1m</option><option value="5">5m</option><option value="10">10m</option><option value="15" selected>15m</option>
+      </select>
+      <span id="brokerTag" class="mono text-xs text-slate-500">Broker: Binance</span>
     </div>
 
-    <!-- ── right rail ── -->
-    <aside class="space-y-4 xl:col-span-4 2xl:col-span-3">
-      <section class="panel overflow-hidden">
-        <header class="flex items-center justify-between border-b border-slate-800 px-4 py-3">
-          <h2 class="font-mono text-[11px] font-semibold tracking-[.28em] text-slate-400">SIGNAL WIRE</h2>
-          <span class="flex items-center gap-1.5 font-mono text-[9px] tracking-wider text-emerald-400"><span class="dot bg-emerald-400 dot-live"></span>STREAMING</span>
-        </header>
-        <div id="feedList" class="max-h-[420px] divide-y divide-slate-800/60 overflow-y-auto"></div>
-      </section>
+    <!-- Candle tracker -->
+    <div class="panel mb-4 p-4">
+      <div class="flex items-center justify-between"><h3 class="mono text-xs tracking-widest text-slate-400">ACTIVE CANDLE TRACKER</h3>
+        <span id="candleSym" class="mono text-sm font-bold text-slate-100">BTCUSDT</span></div>
+      <div class="mt-3 grid grid-cols-2 gap-3 md:grid-cols-5 mono text-[11px]">
+        <div class="rounded border border-slate-800 p-2"><div class="text-slate-500">Open</div><b id="cdO" class="num text-slate-200">—</b></div>
+        <div class="rounded border border-slate-800 p-2"><div class="text-slate-500">Price</div><b id="cdP" class="num text-slate-100">—</b></div>
+        <div class="rounded border border-slate-800 p-2"><div class="text-slate-500">Index</div><b id="cdI" class="num text-cyan-300">—</b></div>
+        <div class="rounded border border-slate-800 p-2"><div class="text-slate-500">Remaining</div><b id="cdR" class="num text-amber-300">—</b></div>
+        <div class="rounded border border-slate-800 p-2"><div class="text-slate-500">Trend</div><b id="cdD" class="text-slate-400">—</b></div>
+      </div>
+      <div class="mt-3 h-1 overflow-hidden rounded-full bg-slate-800"><div id="cdProg" class="h-full bg-emerald-400 transition-all duration-1000"></div></div>
+      <div class="mt-3 mono text-[11px] text-slate-500">Next signal: <span id="nextSig" class="font-bold text-emerald-400">CALL</span>
+        · Entry <b id="nextEntry" class="num text-slate-200">—</b> · Expiry <b id="nextExp" class="num">15m</b> · Conf <b id="nextConf" class="num text-violet-300">—%</b></div>
+    </div>
 
-      <section class="panel">
-        <header class="flex items-center justify-between border-b border-slate-800 px-4 py-3">
-          <h2 class="font-mono text-[11px] font-semibold tracking-[.28em] text-slate-400">ENGINE VITALS</h2>
-          <span class="font-mono text-[9px] text-slate-600">node · eu-west-1</span>
-        </header>
-        <dl class="divide-y divide-slate-800/70 font-mono text-[11px]">
-          <div class="flex justify-between px-4 py-2.5"><dt class="tracking-wider text-slate-500">STRATEGY</dt><dd class="text-slate-200">MR·ZSCORE v3.2</dd></div>
-          <div class="flex justify-between px-4 py-2.5"><dt class="tracking-wider text-slate-500">POLL CYCLE</dt><dd class="num text-slate-200">2,000 ms</dd></div>
-          <div class="flex justify-between px-4 py-2.5"><dt class="tracking-wider text-slate-500">FEED LATENCY</dt><dd id="vitLat" class="num text-cyan-300">—</dd></div>
-          <div class="flex justify-between px-4 py-2.5"><dt class="tracking-wider text-slate-500">THROUGHPUT</dt><dd id="vitMsg" class="num text-slate-200">—</dd></div>
-          <div class="flex justify-between px-4 py-2.5"><dt class="tracking-wider text-slate-500">ORDERS TODAY</dt><dd id="vitOrd" class="num text-emerald-300">0</dd></div>
-          <div class="flex justify-between px-4 py-2.5"><dt class="tracking-wider text-slate-500">RISK / TRADE</dt><dd class="num text-slate-200">0.75 %</dd></div>
-          <div class="flex justify-between px-4 py-2.5"><dt class="tracking-wider text-slate-500">MAX DRAWDOWN</dt><dd class="num text-slate-200">4.2 %</dd></div>
-          <div class="flex justify-between px-4 py-2.5"><dt class="tracking-wider text-slate-500">KILL SWITCH</dt><dd class="text-amber-300">ARMED</dd></div>
-        </dl>
-      </section>
-    </aside>
-  </div>
+    <!-- Market table -->
+    <div class="panel overflow-hidden">
+      <div class="max-h-[520px] overflow-auto">
+        <table class="w-full min-w-[820px] text-left text-xs">
+          <thead class="mono text-[10px] text-slate-500"><tr class="border-b border-slate-800">
+            <th class="px-3 py-2.5">PAIR</th><th class="px-3 py-2.5 text-right">LAST</th>
+            <th class="px-3 py-2.5 text-right">RSI</th><th class="px-3 py-2.5 text-right">Z</th>
+            <th class="px-3 py-2.5">SIGNAL</th><th class="px-3 py-2.5 text-right">CONF</th>
+            <th class="px-3 py-2.5 text-right">TF</th><th class="px-3 py-2.5"></th></tr></thead>
+          <tbody id="tblBody" class="mono"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── View: AI Scanner ── -->
+  <section id="view-ai" class="view hidden">
+    <div class="grid gap-4 lg:grid-cols-2">
+      <div class="panel p-4">
+        <h3 class="mono text-xs tracking-widest text-slate-400">DATA-BASED AI ANALYSIS</h3>
+        <p class="mt-1 mono text-[10px] text-slate-600">Feeds last 50 candles (OHLCV text) to Gemini — isolated, never blocks signals.</p>
+        <div class="mt-3 flex gap-2">
+          <input id="aiSym" class="mono flex-1 rounded border border-slate-700 bg-slate-950 px-3 py-2 text-sm" placeholder="BTCUSDT">
+          <button id="aiScan" class="rounded border border-violet-400/50 bg-violet-400/10 px-4 py-2 mono text-xs text-violet-300 hover:bg-violet-400/20">SCAN</button>
+        </div>
+        <pre id="aiResult" class="mt-3 max-h-72 overflow-auto rounded border border-slate-800 bg-slate-950/70 p-3 mono text-[11px] text-slate-300"></pre>
+      </div>
+      <div class="panel p-4">
+        <h3 class="mono text-xs tracking-widest text-slate-400">VISION AI — CHART UPLOAD</h3>
+        <div id="drop" class="mt-3 grid h-56 place-items-center rounded border-2 border-dashed border-slate-700 text-center mono text-xs text-slate-500 hover:border-violet-400/50">
+          Drag &amp; drop a chart screenshot<br>or click to browse
+        </div>
+        <input id="fileInput" type="file" accept="image/*" class="hidden">
+        <pre id="visionResult" class="mt-3 max-h-60 overflow-auto rounded border border-slate-800 bg-slate-950/70 p-3 mono text-[11px] text-slate-300"></pre>
+      </div>
+    </div>
+    <div id="aiError" class="mt-3 hidden rounded border border-rose-500/40 bg-rose-500/10 p-3 mono text-xs text-rose-300"></div>
+  </section>
+
+  <!-- ── View: Strategy ── -->
+  <section id="view-strategy" class="view hidden">
+    <div class="panel max-w-2xl p-5">
+      <h3 class="mono text-xs tracking-widest text-slate-400">CUSTOM STRATEGY RULES (live-applied)</h3>
+      <div class="mt-4 grid grid-cols-2 gap-4 mono text-xs">
+        <label class="block"><span class="text-slate-400">RSI Oversold (low)</span>
+          <input id="stRsiL" type="number" class="num w-full rounded border border-slate-700 bg-slate-950 px-2 py-2" value="30"></label>
+        <label class="block"><span class="text-slate-400">RSI Overbought (high)</span>
+          <input id="stRsiH" type="number" class="num w-full rounded border border-slate-700 bg-slate-950 px-2 py-2" value="70"></label>
+        <label class="block"><span class="text-slate-400">Z-Score sensitivity</span>
+          <input id="stZ" type="number" step="0.1" class="num w-full rounded border border-slate-700 bg-slate-950 px-2 py-2" value="2.0"></label>
+        <label class="block"><span class="text-slate-400">ADX trend strength</span>
+          <input id="stAdx" type="number" class="num w-full rounded border border-slate-700 bg-slate-950 px-2 py-2" value="25"></label>
+        <label class="block col-span-2"><span class="text-slate-400">S/R breakout margin (%)</span>
+          <input id="stSr" type="number" step="0.05" class="num w-full rounded border border-slate-700 bg-slate-950 px-2 py-2" value="0.15"></label>
+      </div>
+      <button id="stSave" class="mt-4 rounded border border-emerald-400/50 bg-emerald-400/10 px-4 py-2 mono text-xs text-emerald-300 hover:bg-emerald-400/20">APPLY RULES</button>
+    </div>
+  </section>
+
+  <!-- ── View: Telegram ── -->
+  <section id="view-telegram" class="view hidden">
+    <div class="panel max-w-2xl p-5">
+      <h3 class="mono text-xs tracking-widest text-slate-400">TELEGRAM ALERT MANAGER</h3>
+      <div class="mt-4 grid gap-3 mono text-xs">
+        <div class="flex items-center justify-between rounded border border-slate-800 p-3">
+          <span>Alerts enabled</span>
+          <button id="tgToggle" class="rounded border border-slate-600 px-3 py-1 text-slate-300">ON</button></div>
+        <div class="flex items-center justify-between rounded border border-slate-800 p-3">
+          <span>Broadcast to Group/Channel/Admin</span>
+          <span id="tgTargets" class="num text-slate-400">—</span></div>
+      </div>
+      <button id="tgTest" class="mt-4 rounded border border-sky-400/50 bg-sky-400/10 px-4 py-2 mono text-xs text-sky-300 hover:bg-sky-400/20">📤 SEND TEST ALERT</button>
+      <p id="tgMsg" class="mt-2 mono text-[11px] text-slate-500"></p>
+    </div>
+  </section>
 </main>
 
-<footer class="relative z-10 border-t border-slate-800/70">
-  <div class="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-2 px-5 py-5 font-mono text-[10px] tracking-wider text-slate-600">
-    <span>QX-TERMINAL · BUILD 2.4.1+88f3c21 · © 2026</span>
-    <span class="flex items-center gap-2"><span class="dot bg-emerald-400 dot-live"></span>FEED:&nbsp;<span id="footFeed" class="text-amber-300">SIMULATED FALLBACK</span></span>
+<!-- ── Gemini Key Modal ── -->
+<div id="gemModal" class="fixed inset-0 z-50 hidden place-items-center bg-black/60">
+  <div class="panel w-[420px] p-6">
+    <h3 class="mono text-sm tracking-widest text-slate-200">GEMINI API KEY</h3>
+    <p class="mt-1 mono text-[10px] text-slate-600">Stored in memory only — never written to disk.</p>
+    <input id="gemKey" type="password" placeholder="AIza…" class="mt-3 w-full rounded border border-slate-700 bg-slate-950 px-3 py-2 mono text-sm">
+    <div class="mt-4 flex gap-2">
+      <button id="gemSave" class="flex-1 rounded border border-violet-400/50 bg-violet-400/10 py-2 mono text-xs text-violet-300 hover:bg-violet-400/20">SAVE</button>
+      <button id="gemClear" class="rounded border border-slate-700 px-3 py-2 mono text-xs text-slate-400">CLEAR</button>
+      <button id="gemClose" class="rounded border border-slate-700 px-3 py-2 mono text-xs text-slate-400">✕</button>
+    </div>
+    <p id="gemStatus" class="mt-2 mono text-[10px] text-slate-500"></p>
   </div>
-</footer>
+</div>
 
-<div id="toastWrap" class="pointer-events-none fixed bottom-5 right-5 z-50 flex flex-col items-end gap-2"></div>
+<div id="toast" class="pointer-events-none fixed bottom-5 right-5 z-50 rounded border border-slate-700 bg-slate-900/95 px-4 py-2.5 mono text-xs text-slate-200 opacity-0 transition"></div>
 
 <script>
 'use strict';
-/* ═════════════════ helpers ═════════════════ */
-const $ = id => document.getElementById(id);
-const num = v => { const n = Number(v); return Number.isFinite(n) ? n : null; };
-const clamp = (v,a,b) => Math.min(b, Math.max(a, v));
-const loadLS = (k,f) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? f : v; } catch(e){ return f; } };
-const saveLS = (k,v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} };
-
-function fmtPrice(p){
-  if (p >= 1000) return p.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
-  if (p >= 1)    return p.toFixed(2);
-  return p.toPrecision(4);
-}
-const fmtPct = v => (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
-function fmtVol(v){ if(v>=1e9)return (v/1e9).toFixed(2)+'B'; if(v>=1e6)return (v/1e6).toFixed(1)+'M'; if(v>=1e3)return (v/1e3).toFixed(1)+'K'; return v.toFixed(0); }
-function fmtUptime(s){
-  const d=Math.floor(s/86400), h=Math.floor(s%86400/3600), m=Math.floor(s%3600/60), x=Math.floor(s%60);
-  return (d ? d+'d ' : '') + String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(x).padStart(2,'0');
-}
-const splitSym = s => { const base = s.replace(/(USDT|USD|BTC|ETH)$/,''); return [base, s.slice(base.length)]; };
-
-/* ═════════════════ state ═════════════════ */
-const LS = { watch:'qx.watchlist', exec:'qx.realexec', thr:'qx.threshold' };
-const POLL_MS = 2000;
-
-const UNIVERSE = [
-  ['BTCUSDT',64230,8.4e9],['ETHUSDT',3418,4.1e9],['SOLUSDT',172.4,2.2e9],['BNBUSDT',596,1.3e9],
-  ['XRPUSDT',0.5242,1.1e9],['ADAUSDT',0.4512,6.4e8],['DOGEUSDT',0.1284,7.8e8],['AVAXUSDT',29.8,4.2e8],
-  ['LINKUSDT',14.62,3.9e8],['DOTUSDT',6.24,2.1e8],['TONUSDT',7.12,2.6e8],['NEARUSDT',6.84,2.4e8],
-  ['LTCUSDT',84.3,3.1e8],['UNIUSDT',9.41,1.5e8],['ATOMUSDT',8.12,1.2e8],['APTUSDT',8.63,1.9e8],
-  ['ARBUSDT',0.912,2.8e8],['OPUSDT',1.842,1.7e8],['INJUSDT',24.6,1.4e8],['SUIUSDT',1.062,3.3e8],
-  ['TIAUSDT',9.87,1.6e8],['PEPEUSDT',0.0000112,5.2e8],['WIFUSDT',2.31,3.8e8],['FETUSDT',1.42,1.1e8]
-];
-
-const state = {
-  watchlist: loadLS(LS.watch, ['BTCUSDT','ETHUSDT','SOLUSDT']),
-  realExec:  loadLS(LS.exec, false),
-  threshold: loadLS(LS.thr, 75),
-  live: false,
-  filterQ: '',
-  status: { uptimeBase: 3*86400 + 9*3600 + 41*60 + 7, uptimeAt: Date.now(), binance:true, oanda:true, signals:1247 },
-  data: new Map(), hist: new Map(), prevSig: new Map(),
-  ordersToday: 12
-};
-
-/* ═════════════════ simulator (fallback when /api/* unreachable) ═════════════════ */
-function deriveSignal(rsi, z){
-  const strong = Math.abs(z) >= 0.9 || rsi <= 32 || rsi >= 68;
-  let signal = 'NEUTRAL';
-  if (z <= -0.45 || rsi < 42) signal = 'CALL';
-  if (z >=  0.45 || rsi > 58) signal = 'PUT';
-  if (!strong && Math.abs(z) < 0.35) signal = 'NEUTRAL';
-  const conf = Math.round(clamp(52 + Math.abs(z)*13 + Math.abs(rsi-50)*0.55 + (Math.random()*6-3), 35, 98));
-  return { signal, confidence: signal === 'NEUTRAL' ? Math.min(conf, 60) : conf };
-}
-function seedHist(p){
-  const a=[]; let v=p*(1+(Math.random()-0.5)*0.02);
-  for(let i=0;i<42;i++){ v*=1+(Math.random()-0.5)*0.004; a.push(v); }
-  a.push(p); return a;
-}
-function seedSim(){
-  UNIVERSE.forEach(([sym, price, vol]) => {
-    const rsi = 25 + Math.random()*50, z = Math.random()*4 - 2;
-    state.data.set(sym, Object.assign({
-      symbol:sym, price, change:Math.random()*10-4, volume:vol*(0.7+Math.random()*0.6), rsi, zscore:z
-    }, deriveSignal(rsi, z)));
-    state.hist.set(sym, seedHist(price));
-  });
-}
-function simTick(){
-  state.data.forEach(r => {
-    r.price  = Math.max(r.price * (1 + (Math.random()-0.5)*0.0045), 1e-9);
-    r.change = clamp(r.change + (Math.random()-0.5)*0.35, -18, 18);
-    r.rsi    = clamp(r.rsi + (Math.random()-0.5)*4 + (50-r.rsi)*0.02, 4, 96);
-    r.zscore = clamp(r.zscore + (Math.random()-0.5)*0.5 - r.zscore*0.03, -3.4, 3.4);
-    Object.assign(r, deriveSignal(r.rsi, r.zscore));
-  });
-}
-function simStatusTick(){
-  const s = state.status;
-  if (!s._blip && Math.random() < 0.03){
-    s._blip = true; s.oanda = false;
-    setTimeout(() => { s.oanda = true; s._blip = false; renderStatus(); }, 2200);
-  }
-}
-
-/* ═════════════════ API ingestion (tolerant parsing) ═════════════════ */
-function applyStatus(j){
-  const s = state.status;
-  const up = num(j.uptime ?? j.uptime_seconds ?? j.uptimeSec);
-  if (up != null){ s.uptimeBase = up; s.uptimeAt = Date.now(); }
-  s.binance = j.binance ?? j.binance_connected ?? j.connections?.binance ?? s.binance;
-  s.oanda   = j.oanda   ?? j.oanda_connected   ?? j.connections?.oanda   ?? s.oanda;
-  const sig = num(j.signals_total ?? j.signals ?? j.total_signals);
-  if (sig != null) s.signals = sig;
-}
-function applyPairs(j){
-  const arr = Array.isArray(j) ? j : (j.pairs || j.data || []);
-  arr.forEach(p => {
-    const sym = String(p.symbol || p.pair || '').toUpperCase().replace(/[\/\-\s]/g,'');
-    if (!sym) return;
-    const price = num(p.price ?? p.last ?? p.close);
-    if (price == null) return;
-    const prev = state.data.get(sym);
-    let sig = String(p.signal || p.direction || '').toUpperCase();
-    if (!['CALL','PUT','NEUTRAL'].includes(sig)) sig = prev?.signal ?? 'NEUTRAL';
-    state.data.set(sym, {
-      symbol: sym, price,
-      change: num(p.change ?? p.change24h ?? p.change_pct) ?? prev?.change ?? 0,
-      volume: num(p.volume ?? p.quote_volume) ?? prev?.volume ?? 0,
-      rsi:    num(p.rsi) ?? prev?.rsi ?? 50,
-      zscore: num(p.zscore ?? p.z_score ?? p.z) ?? prev?.zscore ?? 0,
-      signal: sig,
-      confidence: num(p.confidence ?? p.conf ?? p.score) ?? prev?.confidence ?? 0
-    });
-    if (!state.hist.has(sym)) state.hist.set(sym, Array(40).fill(price));
-  });
-}
-
-let polling = false;
-async function poll(){
-  if (polling) return; polling = true;
-  let okS = false, okP = false;
-  try { const r = await fetch('/api/status', {cache:'no-store'}); if (r.ok){ applyStatus(await r.json()); okS = true; } } catch(e){}
-  try { const r = await fetch('/api/pairs',  {cache:'no-store'}); if (r.ok){ applyPairs(await r.json());  okP = true; } } catch(e){}
-  state.live = okS && okP;
-  if (!okP) simTick();
-  if (!okS) simStatusTick();
-  afterData();
-  polling = false;
-}
-
-/* ═════════════════ data pipeline ═════════════════ */
-function pushHistories(){
-  state.data.forEach((r, sym) => {
-    const h = state.hist.get(sym) || [];
-    h.push(r.price); if (h.length > 48) h.shift();
-    state.hist.set(sym, h);
-  });
-}
-function detectSignalChanges(){
-  state.data.forEach((r, sym) => {
-    const prev = state.prevSig.get(sym);
-    if (prev !== undefined && prev !== r.signal && r.signal !== 'NEUTRAL'){
-      if (!state.live) state.status.signals++;
-      if (r.confidence >= state.threshold && (state.watchlist.includes(sym) || r.confidence >= 85)){
-        let tag = null;
-        if (state.realExec){ state.ordersToday++; tag = 'EXEC'; }
-        addFeed(r, tag);
-      }
-    }
-    state.prevSig.set(sym, r.signal);
-  });
-}
-let structSize = 0;
-function ensureStructures(){
-  if (state.data.size !== structSize){
-    structSize = state.data.size;
-    buildTicker(); renderTableStructure();
-  }
-}
-function afterData(){
-  pushHistories(); detectSignalChanges(); ensureStructures();
-  renderStatus(); renderTicker(); renderWatchlistData(); renderTableData(); renderVitals();
-}
-
-/* ═════════════════ DOM refs ═════════════════ */
-const feedBadge=$('feedBadge'), uptimeVal=$('uptimeVal'), binDot=$('binDot'), binTxt=$('binTxt'),
-      oaDot=$('oaDot'), oaTxt=$('oaTxt'), sigTotal=$('sigTotal'), utcClock=$('utcClock'), tape=$('tape'),
-      execBtn=$('execBtn'), execChip=$('execChip'), execTitle=$('execTitle'), execSub=$('execSub'), execNote=$('execNote'),
-      thrVal=$('thrVal'), thrRange=$('thrRange'), thrNum=$('thrNum'), thrSave=$('thrSave'),
-      searchInput=$('searchInput'), searchAdd=$('searchAdd'),
-      wlGrid=$('wlGrid'), wlCount=$('wlCount'), tblBody=$('tblBody'), tblCount=$('tblCount'),
-      feedList=$('feedList'), vitLat=$('vitLat'), vitMsg=$('vitMsg'), vitOrd=$('vitOrd'),
-      toastWrap=$('toastWrap'), footFeed=$('footFeed');
-
-/* ═════════════════ flash + sparkline ═════════════════ */
-const flashMap = new Map();
-function flashPrice(el, price, key){
-  if (!el) return;
-  const prev = flashMap.get(key);
-  flashMap.set(key, price);
-  if (prev == null || Math.abs(prev - price) < 1e-12) return;
-  el.classList.remove('flash-up','flash-down'); void el.offsetWidth;
-  el.classList.add(price > prev ? 'flash-up' : 'flash-down');
-}
-function drawSpark(canvas, hist, dir){
-  if (!canvas) return;
-  const dpr = window.devicePixelRatio || 1, w = canvas.clientWidth, h = canvas.clientHeight;
-  if (!w || !h) return;
-  if (canvas.width !== w*dpr){ canvas.width = w*dpr; canvas.height = h*dpr; }
-  const ctx = canvas.getContext('2d');
-  ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,w,h);
-  if (!hist || hist.length < 2) return;
-  const min = Math.min(...hist), max = Math.max(...hist), span = (max-min) || 1;
-  const col = dir === 'PUT' ? '#fb7185' : dir === 'CALL' ? '#34d399' : '#64748b';
-  ctx.beginPath();
-  hist.forEach((v,i) => {
-    const x = i/(hist.length-1)*w, y = h-2-((v-min)/span)*(h-6);
-    i ? ctx.lineTo(x,y) : ctx.moveTo(x,y);
-  });
-  ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.stroke();
-  ctx.lineTo(w,h); ctx.lineTo(0,h); ctx.closePath();
-  const g = ctx.createLinearGradient(0,0,0,h);
-  g.addColorStop(0, col + '33'); g.addColorStop(1, col + '00');
-  ctx.fillStyle = g; ctx.fill();
-}
-
-/* ═════════════════ renderers ═════════════════ */
-function setPill(dot, txt, on){
-  dot.className = 'dot ' + (on ? 'bg-emerald-400 dot-live' : 'bg-amber-400 animate-pulse');
-  txt.textContent = on ? 'LIVE' : 'SYNC';
-  txt.className = 'font-semibold ' + (on ? 'text-emerald-300' : 'text-amber-300');
-}
-function renderStatus(){
-  const s = state.status;
-  setPill(binDot, binTxt, s.binance); setPill(oaDot, oaTxt, s.oanda);
-  sigTotal.textContent = s.signals.toLocaleString('en-US');
-  const badge = 'ml-1 hidden rounded-sm border px-2 py-1 font-mono text-[9px] font-semibold tracking-[.2em] sm:inline-block ';
-  if (state.live){
-    feedBadge.className = badge + 'border-emerald-400/50 bg-emerald-400/10 text-emerald-300';
-    feedBadge.textContent = 'LIVE FEED';
-    footFeed.textContent = 'LIVE · /api'; footFeed.className = 'text-emerald-300';
-  } else {
-    feedBadge.className = badge + 'border-amber-400/50 bg-amber-400/10 text-amber-300';
-    feedBadge.textContent = 'SIM FEED';
-    footFeed.textContent = 'SIMULATED FALLBACK'; footFeed.className = 'text-amber-300';
-  }
-}
-function buildTicker(){
-  const item = r => `<span class="flex items-center gap-2 border-r border-slate-800/60 px-4">
-    <span class="font-mono text-[10px] tracking-wider text-slate-500">${r.symbol}</span>
-    <span class="num font-mono text-[11px] text-slate-200" data-tick-p="${r.symbol}">${fmtPrice(r.price)}</span>
-    <span class="num font-mono text-[10px] ${r.change>=0?'text-emerald-400':'text-rose-400'}" data-tick-c="${r.symbol}">${fmtPct(r.change)}</span></span>`;
-  const items = [...state.data.values()].map(item).join('');
-  tape.innerHTML = items + items;
-}
-function renderTicker(){
-  state.data.forEach((r, sym) => {
-    document.querySelectorAll(`[data-tick-p="${sym}"]`).forEach(e => e.textContent = fmtPrice(r.price));
-    document.querySelectorAll(`[data-tick-c="${sym}"]`).forEach(e => {
-      e.textContent = fmtPct(r.change);
-      e.className = 'num font-mono text-[10px] ' + (r.change >= 0 ? 'text-emerald-400' : 'text-rose-400');
-    });
-  });
-}
-
-/* watchlist */
-function wlCard(sym){
-  const [base, quote] = splitSym(sym);
-  return `
-  <article data-card="${sym}" class="panel group relative overflow-hidden p-4 transition duration-200 hover:border-slate-600 hover:shadow-[0_0_24px_rgba(16,185,129,.06)]">
-    <span data-accent class="absolute inset-x-0 top-0 h-0.5 bg-slate-700"></span>
-    <div class="flex items-start justify-between gap-2">
-      <div class="min-w-0">
-        <h3 class="truncate font-mono text-sm font-bold tracking-wide text-slate-100">${base}<span class="font-medium text-slate-500">/${quote}</span></h3>
-        <p class="mt-0.5 font-mono text-[9px] tracking-[.2em] text-slate-600">PERP · BINANCE FEED</p>
-      </div>
-      <button data-remove="${sym}" title="Remove ${sym}"
-        class="rounded border border-transparent px-1.5 py-0.5 font-mono text-xs text-slate-600 opacity-60 transition hover:border-rose-400/40 hover:bg-rose-400/10 hover:text-rose-300 group-hover:opacity-100">✕</button>
-    </div>
-    <div class="mt-2.5 flex items-end justify-between gap-2">
-      <span data-price class="num rounded px-1 font-mono text-[22px] font-semibold leading-none text-slate-100">—</span>
-      <span data-chg class="num pb-0.5 font-mono text-[11px] font-medium">—</span>
-    </div>
-    <canvas data-spark class="mt-2 h-10 w-full"></canvas>
-    <div class="mt-3 grid grid-cols-2 gap-2">
-      <div class="rounded-md border border-slate-800 bg-slate-950/60 p-2">
-        <div class="flex items-center justify-between font-mono text-[9px] tracking-[.18em] text-slate-500"><span>RSI·14</span><b data-rsi class="num text-[11px] text-slate-300">—</b></div>
-        <div class="mt-1.5 h-1 overflow-hidden rounded-full bg-slate-800"><span data-rsibar class="block h-full w-1/2 rounded-full bg-slate-500 transition-all duration-700"></span></div>
-      </div>
-      <div class="rounded-md border border-slate-800 bg-slate-950/60 p-2">
-        <div class="flex items-center justify-between font-mono text-[9px] tracking-[.18em] text-slate-500"><span>Z-SCORE</span><b data-z class="num text-[11px] text-cyan-300">—</b></div>
-        <div class="mt-1.5 h-1 overflow-hidden rounded-full bg-slate-800"><span class="mx-auto block h-full w-px bg-slate-600"></span></div>
-      </div>
-    </div>
-    <div class="mt-3 flex items-center justify-between border-t border-slate-800/80 pt-3">
-      <span data-sig class="font-mono text-sm font-bold tracking-[.15em] text-slate-500">· · ·</span>
-      <div class="flex items-center gap-1.5">
-        <span data-low class="hidden font-mono text-[8px] tracking-wider text-amber-400/90">▼ BELOW THRESH</span>
-        <span data-conf class="num rounded border px-1.5 py-0.5 font-mono text-[11px] font-bold">—</span>
-      </div>
-    </div>
-  </article>`;
-}
-function emptyState(){
-  return `<div class="rounded-[10px] border border-dashed border-slate-700 bg-slate-900/30 px-6 py-12 text-center sm:col-span-2 2xl:col-span-3">
-    <p class="font-mono text-2xl text-slate-700">◇ ◇ ◇</p>
-    <p class="mt-3 font-mono text-sm text-slate-400">Watchlist is empty</p>
-    <p class="mt-1 font-mono text-[11px] text-slate-600">Search above, add from the scanner, or quick-add:</p>
-    <div class="mt-4 flex flex-wrap justify-center gap-2">
-      ${['BTCUSDT','ETHUSDT','SOLUSDT'].map(s => `<button data-quick="${s}" class="rounded border border-slate-600 bg-slate-800/50 px-3 py-1.5 font-mono text-[11px] text-slate-300 transition hover:border-emerald-400/60 hover:text-emerald-300">+ ${s}</button>`).join('')}
-    </div></div>`;
-}
-function renderWatchlistStructure(){
-  wlCount.textContent = state.watchlist.length + ' PAIRS';
-  wlGrid.innerHTML = state.watchlist.length ? state.watchlist.map(wlCard).join('') : emptyState();
-}
-function renderWatchlistData(){
-  state.watchlist.forEach(sym => {
-    const card = wlGrid.querySelector(`[data-card="${sym}"]`); if (!card) return;
-    const r = state.data.get(sym); if (!r) return;
-    const priceEl = card.querySelector('[data-price]');
-    flashPrice(priceEl, r.price, sym);
-    priceEl.textContent = fmtPrice(r.price);
-    const chg = card.querySelector('[data-chg]');
-    chg.textContent = fmtPct(r.change);
-    chg.className = 'num pb-0.5 font-mono text-[11px] font-medium ' + (r.change >= 0 ? 'text-emerald-400' : 'text-rose-400');
-    card.querySelector('[data-rsi]').textContent = r.rsi.toFixed(1);
-    const bar = card.querySelector('[data-rsibar]');
-    bar.style.width = r.rsi + '%';
-    bar.className = 'block h-full rounded-full transition-all duration-700 ' + (r.rsi >= 70 ? 'bg-rose-400' : r.rsi <= 30 ? 'bg-emerald-400' : 'bg-amber-400/80');
-    const z = card.querySelector('[data-z]');
-    z.textContent = (r.zscore >= 0 ? '+' : '') + r.zscore.toFixed(2);
-    z.className = 'num text-[11px] ' + (Math.abs(r.zscore) > 1.5 ? 'text-amber-300' : 'text-cyan-300');
-    const sig = card.querySelector('[data-sig]'), acc = card.querySelector('[data-accent]');
-    if (r.signal === 'CALL'){ sig.textContent='▲ CALL'; sig.className='font-mono text-sm font-bold tracking-[.15em] text-emerald-400'; acc.className='absolute inset-x-0 top-0 h-0.5 bg-emerald-400'; }
-    else if (r.signal === 'PUT'){ sig.textContent='▼ PUT'; sig.className='font-mono text-sm font-bold tracking-[.15em] text-rose-400'; acc.className='absolute inset-x-0 top-0 h-0.5 bg-rose-400'; }
-    else { sig.textContent='◆ NEUTRAL'; sig.className='font-mono text-sm font-bold tracking-[.15em] text-slate-500'; acc.className='absolute inset-x-0 top-0 h-0.5 bg-slate-700'; }
-    const conf = card.querySelector('[data-conf]'), pass = r.confidence >= state.threshold;
-    conf.textContent = r.confidence + '%';
-    conf.className = 'num rounded border px-1.5 py-0.5 font-mono text-[11px] font-bold ' +
-      (pass ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-300' : 'border-dashed border-slate-600 bg-slate-800/40 text-slate-500');
-    card.querySelector('[data-low]').classList.toggle('hidden', pass);
-    drawSpark(card.querySelector('[data-spark]'), state.hist.get(sym), r.signal);
-  });
-}
-
-/* market table */
-function tblRow(r, i){
-  const [base, quote] = splitSym(r.symbol);
-  return `<tr data-row="${r.symbol}" class="border-b border-slate-800/50 transition-colors hover:bg-slate-800/30">
-    <td class="num px-3 py-2.5 text-[10px] text-slate-600">${String(i+1).padStart(2,'0')}</td>
-    <td class="px-3 py-2.5"><span class="font-semibold text-slate-200">${base}</span><span class="text-slate-500">/${quote}</span></td>
-    <td class="px-3 py-2.5 text-right"><span data-tprice class="num rounded px-1 text-slate-200">—</span></td>
-    <td data-tchg class="num px-3 py-2.5 text-right">—</td>
-    <td data-tvol class="num px-3 py-2.5 text-right text-slate-400">—</td>
-    <td data-trsi class="num px-3 py-2.5 text-right text-slate-300">—</td>
-    <td data-tz class="num px-3 py-2.5 text-right text-cyan-300/90">—</td>
-    <td data-tsig class="px-3 py-2.5 font-semibold tracking-wider">—</td>
-    <td class="px-3 py-2.5 text-right"><div class="flex items-center justify-end gap-1.5">
-      <span class="h-1 w-9 overflow-hidden rounded-full bg-slate-800"><span data-tbar class="block h-full bg-emerald-400/70"></span></span>
-      <span data-tconf class="num w-8 text-right">—</span></div></td>
-    <td class="px-3 py-2.5 text-right"><button data-add="${r.symbol}" class="rounded border border-emerald-400/40 bg-emerald-400/5 px-2.5 py-1 text-[10px] font-semibold tracking-wider text-emerald-300 transition hover:bg-emerald-400/15 active:scale-95">+ ADD</button></td>
-  </tr>`;
-}
-function renderTableStructure(){
-  tblBody.innerHTML = [...state.data.values()].map(tblRow).join('');
-  applyFilter(); updateAddButtons();
-}
-function renderTableData(){
-  state.data.forEach((r, sym) => {
-    const tr = tblBody.querySelector(`tr[data-row="${sym}"]`); if (!tr) return;
-    const pEl = tr.querySelector('[data-tprice]');
-    flashPrice(pEl, r.price, 'tbl-' + sym);
-    pEl.textContent = fmtPrice(r.price);
-    const chg = tr.querySelector('[data-tchg]');
-    chg.textContent = fmtPct(r.change);
-    chg.className = 'num px-3 py-2.5 text-right ' + (r.change >= 0 ? 'text-emerald-400' : 'text-rose-400');
-    tr.querySelector('[data-tvol]').textContent = fmtVol(r.volume);
-    tr.querySelector('[data-trsi]').textContent = r.rsi.toFixed(1);
-    tr.querySelector('[data-tz]').textContent = (r.zscore >= 0 ? '+' : '') + r.zscore.toFixed(2);
-    const ts = tr.querySelector('[data-tsig]');
-    if (r.signal === 'CALL'){ ts.textContent='▲ CALL'; ts.className='px-3 py-2.5 font-semibold tracking-wider text-emerald-400'; }
-    else if (r.signal === 'PUT'){ ts.textContent='▼ PUT'; ts.className='px-3 py-2.5 font-semibold tracking-wider text-rose-400'; }
-    else { ts.textContent='◆ FLAT'; ts.className='px-3 py-2.5 font-semibold tracking-wider text-slate-500'; }
-    const tb = tr.querySelector('[data-tbar]');
-    tb.style.width = r.confidence + '%';
-    tb.className = 'block h-full ' + (r.confidence >= state.threshold ? 'bg-emerald-400/80' : 'bg-slate-500/60');
-    const tc = tr.querySelector('[data-tconf]');
-    tc.textContent = r.confidence + '%';
-    tc.className = 'num w-8 text-right ' + (r.confidence >= state.threshold ? 'text-slate-200' : 'text-slate-500');
-  });
-}
-function applyFilter(){
-  const q = state.filterQ || ''; let vis = 0;
-  tblBody.querySelectorAll('tr[data-row]').forEach(tr => {
-    const hit = tr.dataset.row.includes(q);
-    tr.classList.toggle('hidden', !hit); if (hit) vis++;
-  });
-  tblCount.textContent = `${vis}/${state.data.size} PAIRS`;
-}
-function updateAddButtons(){
-  tblBody.querySelectorAll('[data-add]').forEach(b => {
-    const inWl = state.watchlist.includes(b.dataset.add);
-    b.disabled = inWl;
-    b.textContent = inWl ? '✓ SAVED' : '+ ADD';
-    b.className = inWl
-      ? 'cursor-default rounded border border-slate-700 bg-slate-800/40 px-2.5 py-1 text-[10px] tracking-wider text-slate-500'
-      : 'rounded border border-emerald-400/40 bg-emerald-400/5 px-2.5 py-1 text-[10px] font-semibold tracking-wider text-emerald-300 transition hover:bg-emerald-400/15 active:scale-95';
-  });
-}
-
-/* signal wire */
-function addFeed(r, tag){
-  const t = new Date().toISOString().slice(11,19);
-  const dirCls = r.signal === 'CALL' ? 'text-emerald-400' : r.signal === 'PUT' ? 'text-rose-400' : 'text-slate-400';
-  const el = document.createElement('div');
-  el.className = 'rise flex gap-3 px-4 py-2.5';
-  el.innerHTML = `<span class="num pt-0.5 font-mono text-[10px] text-slate-600">${t}</span>
-    <div class="min-w-0 flex-1">
-      <p class="truncate font-mono text-[11px]"><b class="text-slate-200">${r.symbol}</b>
-        <span class="${dirCls} font-semibold tracking-wider">${r.signal}</span>
-        <span class="num text-slate-400">${r.confidence}%</span>
-        ${tag ? `<span class="ml-1 rounded-sm border border-emerald-400/40 bg-emerald-400/10 px-1 text-[8px] tracking-wider text-emerald-300">${tag}</span>` : ''}</p>
-      <p class="num mt-0.5 font-mono text-[10px] text-slate-600">trigger @ ${fmtPrice(r.price)} · rsi ${r.rsi.toFixed(1)} · z ${r.zscore.toFixed(2)}</p>
-    </div>`;
-  feedList.prepend(el);
-  while (feedList.children.length > 42) feedList.lastChild.remove();
-}
-function addFeedSys(text){
-  const t = new Date().toISOString().slice(11,19);
-  const el = document.createElement('div');
-  el.className = 'rise flex gap-3 px-4 py-2.5';
-  el.innerHTML = `<span class="num pt-0.5 font-mono text-[10px] text-slate-600">${t}</span>
-    <p class="font-mono text-[10px] tracking-wider text-slate-500"><span class="text-cyan-300/80">SYS</span> · ${text}</p>`;
-  feedList.prepend(el);
-}
-function renderVitals(){
-  vitLat.textContent = (9 + Math.random()*14).toFixed(0) + ' ms';
-  vitMsg.textContent = (38 + Math.random()*26).toFixed(0) + '/s';
-  vitOrd.textContent = state.ordersToday;
-}
-
-/* ═════════════════ actions ═════════════════ */
-function addToWatchlist(raw){
-  const sym = String(raw || '').toUpperCase().replace(/[\/\s]/g,'');
-  if (!sym) return toast('Enter a symbol first', 'warn');
-  if (!state.data.has(sym)) return toast(`${sym} not found in feed`, 'err');
-  if (state.watchlist.includes(sym)) return toast(`${sym} already on watchlist`, 'warn');
-  state.watchlist.push(sym); saveLS(LS.watch, state.watchlist);
-  renderWatchlistStructure(); renderWatchlistData(); updateAddButtons();
-  toast(`${sym} added to watchlist`, 'ok');
-}
-function removeFromWatchlist(sym){
-  state.watchlist = state.watchlist.filter(s => s !== sym);
-  saveLS(LS.watch, state.watchlist);
-  renderWatchlistStructure(); renderWatchlistData(); updateAddButtons();
-  toast(`${sym} removed`, 'info');
-}
-
-/* execution toggle: PAPER (amber) → arm → LIVE (green) */
-let armed = false, armTimer = null;
-function disarm(){ armed = false; clearTimeout(armTimer); }
-function renderExec(){
-  if (state.realExec){
-    execChip.textContent = 'LIVE';
-    execChip.className = 'rounded-sm border border-emerald-400/50 bg-emerald-400/10 px-1.5 py-0.5 font-mono text-[9px] tracking-widest text-emerald-300';
-    execBtn.className = 'mt-3 w-full rounded-md border border-emerald-400/60 bg-emerald-400/10 px-3 py-3 text-left shadow-[0_0_24px_rgba(16,185,129,.15)] transition hover:bg-emerald-400/20 active:scale-[.99]';
-    execTitle.innerHTML = '<span class="dot dot-live mr-1.5 inline-block bg-emerald-400 align-middle"></span><span class="align-middle">LIVE EXECUTION ACTIVE</span>';
-    execTitle.className = 'block font-mono text-sm font-bold tracking-wider text-emerald-300';
-    execSub.textContent = 'orders route to Binance · click to revert to paper';
-    execSub.className = 'mt-0.5 block font-mono text-[10px] text-emerald-200/50';
-    execNote.textContent = 'Real orders are signed and dispatched. Kill-switch remains armed on the risk engine.';
-  } else if (armed){
-    execChip.textContent = 'ARM?';
-    execChip.className = 'rounded-sm border border-rose-400/50 bg-rose-400/10 px-1.5 py-0.5 font-mono text-[9px] tracking-widest text-rose-300';
-    execBtn.className = 'mt-3 w-full animate-pulse rounded-md border border-rose-400/70 bg-rose-400/10 px-3 py-3 text-left transition hover:bg-rose-400/20 active:scale-[.99]';
-    execTitle.textContent = '⚠ CONFIRM LIVE ROUTING';
-    execTitle.className = 'block font-mono text-sm font-bold tracking-wider text-rose-300';
-    execSub.textContent = 'click again within 3s to arm real execution';
-    execSub.className = 'mt-0.5 block font-mono text-[10px] text-rose-200/60';
-  } else {
-    execChip.textContent = 'PAPER';
-    execChip.className = 'rounded-sm border border-amber-400/40 bg-amber-400/10 px-1.5 py-0.5 font-mono text-[9px] tracking-widest text-amber-300';
-    execBtn.className = 'mt-3 w-full rounded-md border border-amber-400/50 bg-amber-400/10 px-3 py-3 text-left transition hover:bg-amber-400/15 active:scale-[.99]';
-    execTitle.textContent = '◼ PAPER TRADING';
-    execTitle.className = 'block font-mono text-sm font-bold tracking-wider text-amber-300';
-    execSub.textContent = 'tap to arm live execution';
-    execSub.className = 'mt-0.5 block font-mono text-[10px] text-slate-500';
-    execNote.textContent = 'Fills are simulated locally. No orders reach the exchange while in paper mode.';
-  }
-}
-function setExec(v){
-  state.realExec = v; saveLS(LS.exec, v); disarm(); renderExec();
-  toast(v ? 'LIVE EXECUTION ARMED — orders route to Binance' : 'Reverted to PAPER trading', v ? 'ok' : 'warn');
-}
+const $=id=>document.getElementById(id); const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const loadLS=(k,f)=>{try{const v=JSON.parse(localStorage.getItem(k));return v==null?f:v;}catch{return f;}};
+const saveLS=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}};
+const fmtP=p=>p>=1000?p.toLocaleString('en-US',{maximumFractionDigits:2}):p>=1?p.toFixed(2):p.toPrecision(4);
+const state={market:loadLS('ptx.market','real'),tf:loadLS('ptx.tf',15),pairs:[],status:{uptime:0,binance:false,oanda:false,otc:false,signals:0}};
 
 /* toast */
-function toast(msg, type = 'ok'){
-  const colors = { ok:'border-emerald-400/50 text-emerald-300', warn:'border-amber-400/50 text-amber-300',
-                   err:'border-rose-400/50 text-rose-300', info:'border-cyan-400/50 text-cyan-300' };
-  const el = document.createElement('div');
-  el.className = 'toast pointer-events-auto rounded-md border bg-slate-900/95 px-3.5 py-2.5 font-mono text-xs shadow-lg shadow-black/40 ' + (colors[type] || colors.ok);
-  el.textContent = msg;
-  toastWrap.appendChild(el);
-  setTimeout(() => { el.style.transition = 'opacity .4s, transform .4s'; el.style.opacity = '0'; el.style.transform = 'translateY(6px)'; setTimeout(() => el.remove(), 400); }, 2600);
-}
+let tT; function toast(m,t='ok'){const c=t==='ok'?'border-emerald-400/60 text-emerald-300':t==='err'?'border-rose-400/60 text-rose-300':'border-amber-400/60 text-amber-300';const e=$('toast');e.textContent=m;e.className='pointer-events-none fixed bottom-5 right-5 z-50 rounded border bg-slate-900/95 px-4 py-2.5 mono text-xs '+c+' opacity-100 transition';clearTimeout(tT);tT=setTimeout(()=>e.classList.add('opacity-0'),2400);}
 
-/* ═════════════════ events ═════════════════ */
-execBtn.addEventListener('click', () => {
-  if (state.realExec) return setExec(false);
-  if (armed) return setExec(true);
-  armed = true; renderExec();
-  armTimer = setTimeout(() => { armed = false; renderExec(); }, 3000);
-});
+/* sidebar */
+$('menuBtn').onclick=()=>{openNav(true)};$('closeMenu').onclick=()=>openNav(false);$('scrim').onclick=()=>openNav(false);
+function openNav(on){$('sidebar').classList.toggle('open',on);$('scrim').classList.toggle('hidden',!on);}
+document.querySelectorAll('.nav-item').forEach(a=>a.onclick=()=>{switchView(a.dataset.view);openNav(false);});
+function switchView(v){document.querySelectorAll('.view').forEach(s=>s.classList.add('hidden'));$('view-trading').classList.toggle('hidden',!['quotex','pocket'].includes(v));if(v==='quotex')$('view-trading').classList.remove('hidden');if(v==='pocket'){$('view-trading').classList.remove('hidden');$('brokerTag').textContent='Broker: Pocket Option';}if(v==='ai')$('view-ai').classList.remove('hidden');if(v==='strategy')$('view-strategy').classList.remove('hidden');if(v==='telegram')$('view-telegram').classList.remove('hidden');}
 
-thrRange.addEventListener('input', () => { thrVal.textContent = thrRange.value; thrNum.value = thrRange.value; });
-thrNum.addEventListener('input', () => {
-  const v = clamp(Math.floor(+thrNum.value || 0), 50, 99);
-  thrVal.textContent = thrNum.value === '' ? '—' : v; thrRange.value = v || 50;
-});
-thrSave.addEventListener('click', () => {
-  state.threshold = clamp(Math.round(+thrNum.value || +thrRange.value), 50, 99);
-  saveLS(LS.thr, state.threshold);
-  thrVal.textContent = state.threshold; thrRange.value = state.threshold; thrNum.value = state.threshold;
-  renderWatchlistData(); renderTableData();
-  toast(`Threshold saved · ${state.threshold}%`, 'ok');
-});
+/* market tabs + tf */
+document.querySelectorAll('.mk-tab').forEach(b=>b.onclick=()=>{setMarket(b.dataset.market);});
+function setMarket(m){state.market=m;saveLS('ptx.market',m);document.querySelectorAll('.mk-tab').forEach(b=>{const on=b.dataset.market===m;b.className='mk-tab rounded border px-3 py-1.5 mono text-xs '+(on?'border-emerald-400/50 bg-emerald-400/10 text-emerald-300':'border-slate-700 text-slate-400');});refreshPairs();}
+$('tfSel').onchange=e=>{state.tf=+e.target.value;saveLS('ptx.tf',state.tf);refreshCandle();};
 
-searchInput.addEventListener('input', () => { state.filterQ = searchInput.value.trim().toUpperCase(); applyFilter(); });
-searchInput.addEventListener('keydown', e => {
-  if (e.key !== 'Enter') return;
-  const sym = tblBody.querySelector('tr[data-row]:not(.hidden)')?.dataset.row;
-  sym ? addToWatchlist(sym) : toast('No matching pair in feed', 'warn');
-});
-searchAdd.addEventListener('click', () => {
-  const v = searchInput.value.trim().toUpperCase();
-  if (!v) return toast('Type a symbol to add', 'warn');
-  const exact = state.data.has(v) ? v : tblBody.querySelector('tr[data-row]:not(.hidden)')?.dataset.row;
-  exact ? addToWatchlist(exact) : toast(`${v} not found in feed`, 'err');
-});
+/* polling */
+async function pollStatus(){try{const r=await fetch('/api/status',{cache:'no-store'});if(!r.ok)return;const j=await r.json();state.status={uptime:j.uptime_seconds||0,binance:!!j.binance,oanda:!!j.oanda,otc:!!j.otc,signals:j.signals_total||0};renderHeader();}catch{}}
+function renderHeader(){const s=state.status;setDot('binDot',s.binance);setDot('fxDot',s.oanda);setDot('otcDot',s.otc);$('sigT').textContent=s.signals;$('upT').textContent=fmtUp(s.uptime);}
+function setDot(id,on){const e=$(id);e.className='mr-1 inline-block h-2 w-2 rounded-full '+(on?'bg-emerald-400 dot-live':'bg-slate-600');}
+function fmtUp(s){const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return (h?h+'h ':'')+m+'m '+x+'s';}
 
-wlGrid.addEventListener('click', e => {
-  const rm = e.target.closest('[data-remove]'); if (rm) return removeFromWatchlist(rm.dataset.remove);
-  const qk = e.target.closest('[data-quick]');  if (qk) return addToWatchlist(qk.dataset.quick);
-});
-tblBody.addEventListener('click', e => {
-  const add = e.target.closest('[data-add]'); if (add && !add.disabled) addToWatchlist(add.dataset.add);
-});
+async function refreshPairs(){try{const r=await fetch('/api/pairs?market='+state.market+'&limit=200',{cache:'no-store'});if(!r.ok)return;state.pairs=await r.json();renderTable();}catch{}}
+function renderTable(){const tb=$('tblBody');tb.innerHTML=state.pairs.map(p=>`<tr class="border-b border-slate-800/50 hover:bg-slate-800/30">
+ <td class="px-3 py-2.5 font-semibold text-slate-200">${p.symbol}<span class="text-slate-500"> · ${p.universe||''}</span></td>
+ <td class="px-3 py-2.5 text-right"><span class="num text-slate-100">${fmtP(p.price)}</span></td>
+ <td class="px-3 py-2.5 text-right num text-slate-300">${p.rsi?.toFixed?.(1)||'—'}</td>
+ <td class="px-3 py-2.5 text-right num ${Math.abs(p.zscore)>1.5?'text-amber-300':'text-cyan-300'}">${p.zscore!=null?(p.zscore>=0?'+':'')+p.zscore.toFixed(2):'—'}</td>
+ <td class="px-3 py-2.5 font-semibold tracking-wider ${p.signal==='CALL'?'text-emerald-400':p.signal==='PUT'?'text-rose-400':'text-slate-500'}">${p.signal||'—'}</td>
+ <td class="px-3 py-2.5 text-right"><span class="num text-violet-300">${p.confidence??0}%</span></td>
+ <td class="px-3 py-2.5 text-right num text-slate-400">${p.tf??state.tf}m</td>
+ <td class="px-3 py-2.5 text-right"><button class="rounded border border-emerald-400/40 px-2 py-1 text-[10px] text-emerald-300" data-sel="${p.symbol}">WATCH</button></td></tr>`).join('');
+ tb.querySelectorAll('[data-sel]').forEach(b=>b.onclick=()=>{state.candleSym=b.dataset.sel;refreshCandle();toast('Tracking '+b.dataset.sel);});}
 
-document.addEventListener('keydown', e => {
-  if (e.key === '/' && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)){ e.preventDefault(); searchInput.focus(); }
-});
-let rzT; window.addEventListener('resize', () => { clearTimeout(rzT); rzT = setTimeout(renderWatchlistData, 200); });
+async function refreshCandle(){const sym=state.candleSym||state.pairs[0]?.symbol||'BTCUSDT';if(!state.candleSym)state.candleSym=sym;try{const r=await fetch(`/api/candles/${sym}?tf=${state.tf}`,{cache:'no-store'});if(!r.ok)return;const j=await r.json();$('candleSym').textContent=j.symbol;$('cdO').textContent=fmtP(j.candle.price?.base??j.current?.o??0);$('cdP').textContent=fmtP(j.candle.price??j.current?.price??0);$('cdI').textContent=j.candle.index;const rem=j.candle.remaining;const total=j.tf*60000;$('cdR').textContent=Math.floor(rem/1000)+'s';$('cdProg').style.width=((total-rem)/total*100)+'%';const bull=(j.current&&j.candle.price>=j.current.o);$('cdD').textContent=j.candle.direction.toUpperCase();$('cdD').className='num text-'+(bull?'emerald-300':'rose-300');$('nextSig').textContent=j.candle.direction==='bullish'?'CALL':'PUT';$('nextEntry').textContent=fmtP(j.candle.price);$('nextConf').textContent=(55+Math.abs(j.candle.price-(j.current?.o||j.candle.price))/(j.candle.price||1)*400).toFixed(0)+'%';}catch{}}
 
-/* clocks */
-function tickClock(){
-  const s = state.status;
-  uptimeVal.textContent = fmtUptime(Math.floor(s.uptimeBase + (Date.now() - s.uptimeAt)/1000));
-  utcClock.textContent = new Date().toISOString().slice(11,19);
-}
+/* gemini key modal */
+$('gemBtn').onclick=()=>{$('gemModal').classList.remove('hidden');$('gemModal').classList.add('grid');};
+$('gemClose').onclick=()=>$('gemModal').classList.add('hidden');
+$('gemSave').onclick=async()=>{const k=$('gemKey').value.trim();if(!k)return toast('Enter a key','warn');const r=await fetch('/api/gemini/key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:k})});const j=await r.json();$('gemStatus').textContent='Key set: '+(j.key||'');toast('Gemini key saved (memory)');$('gemKey').value='';};
+$('gemClear').onclick=async()=>{await fetch('/api/gemini/clear',{method:'POST'});$('gemStatus').textContent='Key cleared';toast('Gemini key cleared','warn');};
 
-/* ═════════════════ boot ═════════════════ */
-seedSim();
-state.data.forEach((r, s) => state.prevSig.set(s, r.signal));
-thrRange.value = state.threshold; thrNum.value = state.threshold; thrVal.textContent = state.threshold;
-renderExec(); renderWatchlistStructure(); ensureStructures();
-renderStatus(); renderWatchlistData(); renderTableData(); renderVitals(); tickClock();
-addFeedSys(`watchlist restored · ${state.watchlist.length} pairs from localStorage`);
-addFeedSys('feed handshake · ws://stream:443 · 34ms');
-addFeedSys('engine core online · mr-zscore v3.2 loaded');
+/* AI scan */
+$('aiScan').onclick=async()=>{const sym=$('aiSym').value.trim().toUpperCase()||state.candleSym;hideErr();$('aiResult').textContent='Analyzing '+sym+' …';try{const r=await fetch('/api/ai/scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({symbol:sym,tf:state.tf})});const j=await r.json();if(j.ok){$('aiResult').textContent=JSON.stringify(j.analysis,null,2);}else showErr(j.error);}catch(e){showErr(e.message);}};
+function showErr(m){const e=$('aiError');e.classList.remove('hidden');e.textContent='⚠ AI ISOLATED ERROR (signals unaffected): '+m;}
+function hideErr(){$('aiError').classList.add('hidden');}
 
-setInterval(poll, POLL_MS); poll();
-setInterval(tickClock, 1000);
+/* vision upload */
+const drop=$('drop'),fi=$('fileInput');
+drop.onclick=()=>fi.click();fi.onchange=()=>upload(fi.files[0]);
+drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('border-violet-400');});
+drop.addEventListener('drop',e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(f)upload(f);});
+function upload(f){if(!f)return;const rd=new FileReader();rd.onload=async()=>{$('visionResult').textContent='Analyzing image via Gemini…';try{const r=await fetch('/api/analyze-chart',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image:rd.result,tf:state.tf})});const j=await r.json();if(j.ok)$('visionResult').textContent=JSON.stringify(j.analysis,null,2);else showErr(j.error);}catch(e){showErr(e.message);}};rd.readAsDataURL(f);}
+
+/* strategy save */
+$('stSave').onclick=async()=>{const b={rsiLow:+$('stRsiL').value,rsiHigh:+$('stRsiH').value,zscoreMin:+$('stZ').value,adxMin:+$('stAdx').value,srBreakout:+$('stSr').value};const r=await fetch('/api/strategy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});const j=await r.json();toast('Strategy rules applied');$('aiError')&&null;};
+
+/* telegram */
+$('tgToggle').onclick=async()=>{const on=$('tgToggle').textContent==='ON';$('tgToggle').textContent=on?'OFF':'ON';toast(on?'Alerts OFF (dashboard unaffected)':'Alerts ON','warn');};
+$('tgTest').onclick=async()=>{const r=await fetch('/api/telegram/test',{method:'POST'});const j=await r.json();$('tgMsg').textContent=j.ok?'Test alert sent ✓':('Error: '+(j.error||''));toast(j.ok?'Test alert sent':'Failed','warn');};
+
+/* boot */
+setInterval(pollStatus,2000);setInterval(refreshPairs,2000);setInterval(refreshCandle,1000);
+pollStatus();refreshPairs();refreshCandle();
 </script>
 </body>
 </html>
