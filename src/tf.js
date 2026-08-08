@@ -3,25 +3,33 @@
 /**
  * src/tf.js
  * 1m closed bars → higher-timeframe candle folder (5m / 10m / 15m / 20m …).
+ * Buckets are epoch-aligned (5m closes at :00/:05/:10…), fully incremental,
+ * bounded memory (ring of last N closed candles per symbol×TF).
  */
 
 const cfg = require('./config');
-const MS_1M = 60 * 1000;
+const MS_1M = 60 * 1000; // Directly defined to avoid circular dependency with aggregator
 
 class TFEngine {
+  /**
+   * @param {object} opts
+   * @param {(symbol:string, tfMinutes:number, candle:object) => void} opts.onCandle
+   *        Called once per CLOSED higher-TF candle. candle = {openAt,closeAt,o,h,l,c,v}
+   */
   constructor({ onCandle } = {}) {
     if (typeof onCandle !== 'function') {
       throw new Error('TFEngine: onCandle(symbol, tf, candle) callback is required');
     }
     this.onCandle = onCandle;
 
+    // Sanitize TF list: integers ≥ 1, unique, ascending.
     this.tfs = [...new Set((cfg.TIMEFRAMES || [5, 10, 15, 20]).map(Number))]
       .filter(n => Number.isInteger(n) && n >= 1)
       .sort((a, b) => a - b);
     if (!this.tfs.length) this.tfs = [15];
 
     this.keep = Math.max(60, cfg.TF_KEEP_CANDLES || 260);
-    this.symbols = new Map();
+    this.symbols = new Map(); // symbol -> Map(tfMs -> { current, closed: [] })
     this.stats = { candles: 0, late: 0, symbols: 0 };
   }
 
@@ -29,6 +37,11 @@ class TFEngine {
     return Math.floor(ts / tfMs);
   }
 
+  /**
+   * Fold one CLOSED 1m bar into every configured TF.
+   * @param {string} symbol
+   * @param {{o:number,h:number,l:number,c:number,v?:number,openAt:number}} bar
+   */
   push(symbol, bar) {
     if (!symbol || !bar || !Number.isFinite(bar.openAt) ||
         !Number.isFinite(bar.o) || !Number.isFinite(bar.h) ||
@@ -54,6 +67,7 @@ class TFEngine {
 
       const bucket = this._bucket(bar.openAt, tfMs);
       if (!st.current || bucket !== st.current.bucket) {
+        // Rollover → close previous candle, open new one.
         if (st.current) this._close(symbol, st, tf, st.current);
         st.current = {
           bucket,
@@ -62,6 +76,7 @@ class TFEngine {
           v: bar.v || 0,
         };
       } else {
+        // Same bucket → merge.
         if (bar.h > st.current.h) st.current.h = bar.h;
         if (bar.l < st.current.l) st.current.l = bar.l;
         st.current.c = bar.c;
@@ -86,18 +101,21 @@ class TFEngine {
     }
   }
 
+  /** Last N closed candles for (symbol, tf). Shallow copies — do not mutate. */
   getCandles(symbol, tfMinutes) {
     const sym = this.symbols.get(symbol);
     if (!sym) return [];
     return (sym.get(tfMinutes * MS_1M) || { closed: [] }).closed.slice();
   }
 
+  /** Currently-forming candle (not closed) or null. */
   current(symbol, tfMinutes) {
     const sym = this.symbols.get(symbol);
     if (!sym) return null;
     return sym.get(tfMinutes * MS_1M)?.current || null;
   }
 
+  /** Symbols that currently have ≥1 TF with data. */
   activeSymbols() {
     return [...this.symbols.keys()];
   }
