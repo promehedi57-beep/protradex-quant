@@ -1,33 +1,38 @@
 'use strict';
 const cfg = require('./config');
 
-// রিস্টার্ট ছাড়াই runtime-এ বদলযোগ্য স্টেট — dashboard + Telegram দুটোই এটাকে ব্যবহার করে
-const state = {
-  executionEnabled: cfg.EXECUTION_ENABLED,
-  minConfidence: cfg.MIN_CONFIDENCE,
-  lastCandleAt: 0,
-  _execListeners: [],
-  _confListeners: []
-};
+class RuntimeState {
+  constructor() {
+    this.executionEnabled = cfg.EXECUTION_ENABLED === true;
+    this.otcEnabled       = cfg.OTC_ENABLED !== false;
+    this.alertsEnabled    = cfg.TELEGRAM_ALERTS_ENABLED !== false;
+    this.minConfidence    = cfg.MIN_CONFIDENCE ?? 65;
+    this.lastCandleAt     = 0;
+    this._execCb = null; this._alertCb = null; this._otcCb = null; this._confCb = null;
+  }
 
-function setExecution(v) {
-  v = !!v;
-  const changed = v !== state.executionEnabled;
-  state.executionEnabled = v;
-  if (changed) for (const fn of state._execListeners) { try { fn(v); } catch (e) { console.error('[state] exec listener:', e.message); } }
-  return v;
+  /* execution */
+  setExecution(v){ this.executionEnabled = !!v; if (this._execCb) this._execCb(this.executionEnabled); }
+  onExecutionChange(fn){ this._execCb = fn; }
+  getExecution(){ return this.executionEnabled; }
+
+  /* otc */
+  setOtc(v){ this.otcEnabled = !!v; if (this._otcCb) this._otcCb(this.otcEnabled); }
+  onOtcChange(fn){ this._otcCb = fn; }
+  getOtc(){ return this.otcEnabled; }
+
+  /* telegram alerts master switch (NOT dashboard) */
+  setAlerts(v){ this.alertsEnabled = !!v; if (this._alertCb) this._alertCb(this.alertsEnabled); }
+  onAlertsChange(fn){ this._alertCb = fn; }
+  getAlerts(){ return this.alertsEnabled; }
+
+  /* confidence */
+  setConfidence(v){
+    this.minConfidence = Math.max(0, Math.min(97, Math.round(Number(v) || 65)));
+    if (this._confCb) this._confCb(this.minConfidence);
+  }
+  onConfidenceChange(fn){ this._confCb = fn; }
+  getConfidence(){ return this.minConfidence; }
 }
-const onExecutionChange = fn => state._execListeners.push(fn);
-const getExecution = () => state.executionEnabled;
 
-function setConfidence(v) {
-  v = Math.max(0, Math.min(97, Math.round(Number(v) || 0)));
-  const changed = v !== state.minConfidence;
-  state.minConfidence = v;
-  if (changed) for (const fn of state._confListeners) { try { fn(v); } catch (e) { console.error('[state] conf listener:', e.message); } }
-  return v;
-}
-const onConfidenceChange = fn => state._confListeners.push(fn);
-const getConfidence = () => state.minConfidence;
-
-module.exports = { state, setExecution, onExecutionChange, getExecution, setConfidence, onConfidenceChange, getConfidence };
+module.exports = new RuntimeState();
