@@ -3,179 +3,214 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>APEX//QUANT — Real-time Signal Terminal</title>
+<title>APEX//QUANT · Pro Terminal</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
 
-<!-- Fonts: Space Grotesk (display) · Manrope (body) · IBM Plex Mono (data) -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
-tailwind.config = {
-  theme: { extend: {
-    colors: {
-      ink:'#05070b', panel:'#0a101a', panel2:'#0d1522', line:'#16202f', line2:'#1f2d40',
-      ion:'#4ee1ff', call:'#0fe39b', put:'#ff3b5c', otc:'#ffb224', muted:'#5f7189', paper:'#e8eef6'
-    },
-    fontFamily: {
-      display:['"Space Grotesk"','sans-serif'],
-      body:['Manrope','sans-serif'],
-      mono:['"IBM Plex Mono"','monospace']
-    }
-  }}
-}
+tailwind.config={theme:{extend:{colors:{
+  ink:'#05070b',panel:'#0a101a',panel2:'#0d1522',line:'#16202f',line2:'#1f2d40',
+  ion:'#4ee1ff',call:'#0fe39b',put:'#ff3b5c',otc:'#ffb224',muted:'#5f7189',paper:'#e8eef6',
+  gem:'#b794ff',ai:'#6366f1'
+},fontFamily:{
+  display:['"Space Grotesk"','sans-serif'],
+  body:['Manrope','sans-serif'],
+  mono:['"IBM Plex Mono"','monospace']
+}}}}
 </script>
 
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 
 <style>
-  html{color-scheme:dark;scroll-behavior:smooth}
-  body{background:#05070b}
-  ::selection{background:rgba(78,225,255,.25)}
-  ::-webkit-scrollbar{width:9px;height:9px}
-  ::-webkit-scrollbar-track{background:#070b12}
-  ::-webkit-scrollbar-thumb{background:#1c2938;border-radius:6px;border:2px solid #070b12}
-  ::-webkit-scrollbar-thumb:hover{background:#2a3c54}
+html{color-scheme:dark;scroll-behavior:smooth}
+body{background:#05070b}
+::selection{background:rgba(78,225,255,.25)}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-track{background:#070b12}
+::-webkit-scrollbar-thumb{background:#1c2938;border-radius:6px;border:2px solid #070b12}
+::-webkit-scrollbar-thumb:hover{background:#2a3c54}
 
-  /* ambient layers */
-  .bg-grid{background-image:linear-gradient(rgba(78,225,255,.028) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(78,225,255,.028) 1px,transparent 1px);background-size:46px 46px}
-  .vignette{background:radial-gradient(1100px 520px at 18% -8%,rgba(78,225,255,.055),transparent 60%),
-    radial-gradient(900px 480px at 100% 0%,rgba(15,227,155,.04),transparent 55%),
-    radial-gradient(800px 600px at 50% 120%,rgba(255,59,92,.035),transparent 60%)}
-  .noise{position:fixed;inset:0;z-index:60;pointer-events:none;opacity:.05;mix-blend-mode:overlay;
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E")}
+.bg-grid{background-image:linear-gradient(rgba(78,225,255,.028) 1px,transparent 1px),
+  linear-gradient(90deg,rgba(78,225,255,.028) 1px,transparent 1px);background-size:46px 46px}
+.vignette{background:radial-gradient(1100px 520px at 18% -8%,rgba(78,225,255,.055),transparent 60%),
+  radial-gradient(900px 480px at 100% 0%,rgba(15,227,155,.04),transparent 55%),
+  radial-gradient(800px 600px at 50% 120%,rgba(255,59,92,.035),transparent 60%)}
+.noise{position:fixed;inset:0;z-index:60;pointer-events:none;opacity:.05;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E")}
 
-  .panel{position:relative;background:linear-gradient(180deg,#0b1220 0%,#090f19 100%);
-    border:1px solid #16202f;border-radius:12px}
-  .corners::before,.corners::after{content:'';position:absolute;width:13px;height:13px;pointer-events:none}
-  .corners::before{top:-1px;left:-1px;border-top:1px solid rgba(78,225,255,.5);border-left:1px solid rgba(78,225,255,.5)}
-  .corners::after{bottom:-1px;right:-1px;border-bottom:1px solid rgba(78,225,255,.5);border-right:1px solid rgba(78,225,255,.5)}
+.panel{position:relative;background:linear-gradient(180deg,#0b1220 0%,#090f19 100%);
+  border:1px solid #16202f;border-radius:12px}
+.corners::before,.corners::after{content:'';position:absolute;width:13px;height:13px;pointer-events:none}
+.corners::before{top:-1px;left:-1px;border-top:1px solid rgba(78,225,255,.5);border-left:1px solid rgba(78,225,255,.5)}
+.corners::after{bottom:-1px;right:-1px;border-bottom:1px solid rgba(78,225,255,.5);border-right:1px solid rgba(78,225,255,.5)}
 
-  .sec-label{font-family:'Space Grotesk';letter-spacing:.22em;font-size:11px;color:#7e93ab;text-transform:uppercase}
-  .sec-label b{color:#4ee1ff;font-weight:700}
+.sec-label{font-family:'Space Grotesk';letter-spacing:.22em;font-size:11px;color:#7e93ab;text-transform:uppercase}
+.sec-label b{color:#4ee1ff;font-weight:700}
 
-  /* ── signal cards ─────────────────────────── */
-  .sig{position:relative;background:linear-gradient(180deg,#0c1421,#090f19);border:1px solid #182435;
-    border-radius:12px;overflow:hidden;transition:transform .18s ease,border-color .18s,box-shadow .25s;cursor:pointer}
-  .sig:hover{transform:translateY(-2px)}
-  .sig::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
-  .sig.call{border-color:rgba(15,227,155,.32)}
-  .sig.call::before{background:linear-gradient(180deg,#0fe39b,transparent)}
-  .sig.call:hover,.sig.sel.call{box-shadow:0 0 30px -6px rgba(15,227,155,.35);border-color:rgba(15,227,155,.65)}
-  .sig.put{border-color:rgba(255,59,92,.32)}
-  .sig.put::before{background:linear-gradient(180deg,#ff3b5c,transparent)}
-  .sig.put:hover,.sig.sel.put{box-shadow:0 0 30px -6px rgba(255,59,92,.35);border-color:rgba(255,59,92,.65)}
-  .sig.sel{outline:1px solid rgba(78,225,255,.5);outline-offset:2px}
-  .sig.enter{animation:sigIn .5s cubic-bezier(.2,.9,.25,1.15) both}
-  @keyframes sigIn{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:none}}
-  .sig.leaving{opacity:0;transform:scale(.95);transition:all .3s ease}
+/* signal cards */
+.sig{position:relative;background:linear-gradient(180deg,#0c1421,#090f19);border:1px solid #182435;
+  border-radius:12px;overflow:hidden;transition:transform .18s,border-color .18s,box-shadow .25s;cursor:pointer}
+.sig:hover{transform:translateY(-2px)}
+.sig::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px}
+.sig.call{border-color:rgba(15,227,155,.32)}
+.sig.call::before{background:linear-gradient(180deg,#0fe39b,transparent)}
+.sig.call:hover,.sig.sel.call{box-shadow:0 0 30px -6px rgba(15,227,155,.35);border-color:rgba(15,227,155,.65)}
+.sig.put{border-color:rgba(255,59,92,.32)}
+.sig.put::before{background:linear-gradient(180deg,#ff3b5c,transparent)}
+.sig.put:hover,.sig.sel.put{box-shadow:0 0 30px -6px rgba(255,59,92,.35);border-color:rgba(255,59,92,.65)}
+.sig.sel{outline:1px solid rgba(78,225,255,.5);outline-offset:2px}
+.sig.enter{animation:sigIn .5s cubic-bezier(.2,.9,.25,1.15) both}
+@keyframes sigIn{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:none}}
+.sig.leaving{opacity:0;transform:scale(.95);transition:all .3s ease}
 
-  .dchip{display:inline-flex;align-items:center;gap:5px;font-family:'Space Grotesk';font-weight:700;
-    letter-spacing:.14em;font-size:12px;padding:4px 12px;border-radius:6px}
-  .dchip.call{color:#0fe39b;background:rgba(15,227,155,.1);border:1px solid rgba(15,227,155,.45);
-    text-shadow:0 0 12px rgba(15,227,155,.7);animation:chipPulseG 2.4s ease-in-out infinite}
-  .dchip.put{color:#ff3b5c;background:rgba(255,59,92,.1);border:1px solid rgba(255,59,92,.45);
-    text-shadow:0 0 12px rgba(255,59,92,.7);animation:chipPulseR 2.4s ease-in-out infinite}
-  @keyframes chipPulseG{50%{box-shadow:0 0 16px -2px rgba(15,227,155,.55)}}
-  @keyframes chipPulseR{50%{box-shadow:0 0 16px -2px rgba(255,59,92,.55)}}
+.dchip{display:inline-flex;align-items:center;gap:5px;font-family:'Space Grotesk';font-weight:700;
+  letter-spacing:.14em;font-size:12px;padding:4px 12px;border-radius:6px}
+.dchip.call{color:#0fe39b;background:rgba(15,227,155,.1);border:1px solid rgba(15,227,155,.45);
+  text-shadow:0 0 12px rgba(15,227,155,.7);animation:chipPulseG 2.4s ease-in-out infinite}
+.dchip.put{color:#ff3b5c;background:rgba(255,59,92,.1);border:1px solid rgba(255,59,92,.45);
+  text-shadow:0 0 12px rgba(255,59,92,.7);animation:chipPulseR 2.4s ease-in-out infinite}
+@keyframes chipPulseG{50%{box-shadow:0 0 16px -2px rgba(15,227,155,.55)}}
+@keyframes chipPulseR{50%{box-shadow:0 0 16px -2px rgba(255,59,92,.55)}}
 
-  .badge{font-family:'IBM Plex Mono';font-size:9px;letter-spacing:.14em;padding:2px 7px;border-radius:4px;font-weight:600}
-  .badge.crypto{color:#4ee1ff;background:rgba(78,225,255,.08);border:1px solid rgba(78,225,255,.3)}
-  .badge.otc{color:#ffb224;background:rgba(255,178,36,.08);border:1px solid rgba(255,178,36,.35)}
+.badge{font-family:'IBM Plex Mono';font-size:9px;letter-spacing:.14em;padding:2px 7px;border-radius:4px;font-weight:600}
+.badge.crypto{color:#4ee1ff;background:rgba(78,225,255,.08);border:1px solid rgba(78,225,255,.3)}
+.badge.otc{color:#ffb224;background:rgba(255,178,36,.08);border:1px solid rgba(255,178,36,.35)}
+.badge.quotex{color:#b794ff;background:rgba(183,148,255,.08);border:1px solid rgba(183,148,255,.4)}
+.badge.pocket{color:#4ee1ff;background:rgba(78,225,255,.08);border:1px solid rgba(78,225,255,.4)}
 
-  .stamp{position:absolute;right:12px;top:40px;font-family:'Space Grotesk';font-weight:700;font-size:24px;
-    letter-spacing:.1em;transform:rotate(-10deg);padding:2px 14px;border-radius:6px;pointer-events:none;z-index:5}
-  .stamp.win{color:#0fe39b;border:2px solid #0fe39b;background:rgba(15,227,155,.08);box-shadow:0 0 22px -4px rgba(15,227,155,.5)}
-  .stamp.loss{color:#ff3b5c;border:2px solid #ff3b5c;background:rgba(255,59,92,.08);box-shadow:0 0 22px -4px rgba(255,59,92,.5)}
-  .sig.closed{opacity:.82}
+.stamp{position:absolute;right:12px;top:40px;font-family:'Space Grotesk';font-weight:700;font-size:24px;
+  letter-spacing:.1em;transform:rotate(-10deg);padding:2px 14px;border-radius:6px;pointer-events:none;z-index:5}
+.stamp.win{color:#0fe39b;border:2px solid #0fe39b;background:rgba(15,227,155,.08);box-shadow:0 0 22px -4px rgba(15,227,155,.5)}
+.stamp.loss{color:#ff3b5c;border:2px solid #ff3b5c;background:rgba(255,59,92,.08);box-shadow:0 0 22px -4px rgba(255,59,92,.5)}
+.sig.closed{opacity:.82}
 
-  /* value flash */
-  @keyframes flashG{0%{background:rgba(15,227,155,.3)}100%{background:transparent}}
-  @keyframes flashR{0%{background:rgba(255,59,92,.3)}100%{background:transparent}}
-  .fu{animation:flashG .7s ease-out}.fd{animation:flashR .7s ease-out}
+@keyframes flashG{0%{background:rgba(15,227,155,.3)}100%{background:transparent}}
+@keyframes flashR{0%{background:rgba(255,59,92,.3)}100%{background:transparent}}
+.fu{animation:flashG .7s ease-out}.fd{animation:flashR .7s ease-out}
 
-  /* buttons */
-  .btn-tg{position:relative;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;gap:7px;
-    width:100%;font-family:'Space Grotesk';font-weight:600;font-size:11px;letter-spacing:.1em;
-    color:#a8ecff;background:rgba(78,225,255,.06);border:1px solid rgba(78,225,255,.32);
-    border-radius:8px;padding:8px 10px;transition:all .18s}
-  .btn-tg:hover:not(:disabled){background:rgba(78,225,255,.15);border-color:rgba(78,225,255,.7);
-    box-shadow:0 0 18px -4px rgba(78,225,255,.45);transform:translateY(-1px)}
-  .btn-tg:disabled{opacity:.6;cursor:wait}
-  .btn-tg.sent{color:#0fe39b;border-color:rgba(15,227,155,.5);background:rgba(15,227,155,.08)}
-  .btn-ghost{border:1px solid #1f2d40;border-radius:8px;color:#7e93ab;padding:8px 10px;transition:all .18s}
-  .btn-ghost:hover{color:#e8eef6;border-color:#33465f;background:#101a29}
+.btn-tg{position:relative;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  width:100%;font-family:'Space Grotesk';font-weight:600;font-size:11px;letter-spacing:.1em;
+  color:#a8ecff;background:rgba(78,225,255,.06);border:1px solid rgba(78,225,255,.32);
+  border-radius:8px;padding:8px 10px;transition:all .18s}
+.btn-tg:hover:not(:disabled){background:rgba(78,225,255,.15);border-color:rgba(78,225,255,.7);
+  box-shadow:0 0 18px -4px rgba(78,225,255,.45);transform:translateY(-1px)}
+.btn-tg:disabled{opacity:.6;cursor:wait}
+.btn-tg.sent{color:#0fe39b;border-color:rgba(15,227,155,.5);background:rgba(15,227,155,.08)}
+.btn-ghost{border:1px solid #1f2d40;border-radius:8px;color:#7e93ab;padding:8px 10px;transition:all .18s}
+.btn-ghost:hover{color:#e8eef6;border-color:#33465f;background:#101a29}
 
-  /* tabs */
-  .tab{font-family:'Space Grotesk';font-size:11px;letter-spacing:.12em;font-weight:600;color:#7e93ab;
-    padding:7px 14px;border:1px solid transparent;border-radius:8px;transition:all .18s;white-space:nowrap}
-  .tab:hover{color:#c9d7e8}
-  .tab.on{color:#4ee1ff;border-color:rgba(78,225,255,.4);background:rgba(78,225,255,.07);
-    box-shadow:inset 0 0 14px -6px rgba(78,225,255,.4)}
+.tab{font-family:'Space Grotesk';font-size:11px;letter-spacing:.12em;font-weight:600;color:#7e93ab;
+  padding:7px 14px;border:1px solid transparent;border-radius:8px;transition:all .18s;white-space:nowrap}
+.tab:hover{color:#c9d7e8}
+.tab.on{color:#4ee1ff;border-color:rgba(78,225,255,.4);background:rgba(78,225,255,.07);
+  box-shadow:inset 0 0 14px -6px rgba(78,225,255,.4)}
 
-  /* ticker */
-  .ticker-mask{overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent);
-    mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent)}
-  .ticker-track{display:flex;width:max-content;animation:marquee 48s linear infinite}
-  .ticker-mask:hover .ticker-track{animation-play-state:paused}
-  @keyframes marquee{to{transform:translateX(-50%)}}
+.broker-tab{font-family:'Space Grotesk';font-size:11px;letter-spacing:.14em;font-weight:600;color:#7e93ab;
+  padding:6px 14px;border:1px solid #1f2d40;border-radius:6px;transition:all .18s;cursor:pointer}
+.broker-tab:hover{color:#c9d7e8;border-color:#33465f}
+.broker-tab.on{color:#b794ff;border-color:rgba(183,148,255,.5);background:rgba(183,148,255,.08);
+  box-shadow:0 0 12px -4px rgba(183,148,255,.35)}
 
-  /* dots & chips */
-  .dot{width:7px;height:7px;border-radius:99px;flex:none}
-  .dot.live{background:#0fe39b;box-shadow:0 0 8px #0fe39b;animation:blink 1.6s ease-in-out infinite}
-  .dot.warn{background:#ffb224;box-shadow:0 0 8px #ffb224;animation:blink .8s ease-in-out infinite}
-  .dot.off{background:#ff3b5c;box-shadow:0 0 8px rgba(255,59,92,.7)}
-  .dot.sim{background:#ffb224;box-shadow:0 0 8px #ffb224}
-  @keyframes blink{50%{opacity:.35}}
+.ticker-mask{overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent);
+  mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent)}
+.ticker-track{display:flex;width:max-content;animation:marquee 48s linear infinite}
+.ticker-mask:hover .ticker-track{animation-play-state:paused}
+@keyframes marquee{to{transform:translateX(-50%)}}
 
-  /* range slider */
-  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:4px;outline:none;
-    background:linear-gradient(90deg,#4ee1ff var(--fill,50%),#1b2a3d var(--fill,50%))}
-  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;
-    background:#0a101a;border:2px solid #4ee1ff;box-shadow:0 0 12px rgba(78,225,255,.6);cursor:pointer;transition:transform .15s}
-  input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2)}
-  input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#0a101a;
-    border:2px solid #4ee1ff;box-shadow:0 0 12px rgba(78,225,255,.6);cursor:pointer}
+.dot{width:7px;height:7px;border-radius:99px;flex:none}
+.dot.live{background:#0fe39b;box-shadow:0 0 8px #0fe39b;animation:blink 1.6s ease-in-out infinite}
+.dot.warn{background:#ffb224;box-shadow:0 0 8px #ffb224;animation:blink .8s ease-in-out infinite}
+.dot.off{background:#ff3b5c;box-shadow:0 0 8px rgba(255,59,92,.7)}
+.dot.sim{background:#ffb224;box-shadow:0 0 8px #ffb224}
+@keyframes blink{50%{opacity:.35}}
+@keyframes ping{0%{box-shadow:0 0 0 0 rgba(15,227,155,.6)}75%,100%{box-shadow:0 0 0 6px rgba(15,227,155,0)}}
+.dot-live{animation:ping 2.2s cubic-bezier(0,0,.2,1) infinite}
 
-  /* toggle */
-  .tgl{position:relative;width:44px;height:23px;border-radius:99px;background:#141f30;border:1px solid #24344b;
-    transition:all .2s;cursor:pointer;flex:none}
-  .tgl::after{content:'';position:absolute;top:2px;left:2px;width:17px;height:17px;border-radius:50%;
-    background:#5f7189;transition:all .22s cubic-bezier(.3,1.4,.5,1)}
-  input:checked + .tgl{background:rgba(15,227,155,.14);border-color:rgba(15,227,155,.55)}
-  input:checked + .tgl::after{left:23px;background:#0fe39b;box-shadow:0 0 10px rgba(15,227,155,.8)}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:4px;outline:none;
+  background:linear-gradient(90deg,#4ee1ff var(--fill,50%),#1b2a3d var(--fill,50%))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;
+  background:#0a101a;border:2px solid #4ee1ff;box-shadow:0 0 12px rgba(78,225,255,.6);cursor:pointer;transition:transform .15s}
+input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2)}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#0a101a;
+  border:2px solid #4ee1ff;box-shadow:0 0 12px rgba(78,225,255,.6);cursor:pointer}
 
-  /* toasts */
-  .toast{pointer-events:auto;display:flex;gap:10px;align-items:flex-start;width:min(340px,calc(100vw-32px));
-    background:rgba(11,18,30,.96);backdrop-filter:blur(6px);border:1px solid #22334a;border-radius:10px;
-    padding:11px 13px;position:relative;overflow:hidden;transform:translateX(28px);opacity:0;
-    transition:all .32s cubic-bezier(.2,.9,.3,1.1);box-shadow:0 12px 34px -12px rgba(0,0,0,.7)}
-  .toast.show{transform:none;opacity:1}
-  .toast .bar{position:absolute;left:0;bottom:0;height:2px;animation:barRun linear forwards}
-  @keyframes barRun{from{width:100%}to{width:0}}
+.tgl{position:relative;width:44px;height:23px;border-radius:99px;background:#141f30;border:1px solid #24344b;
+  transition:all .2s;cursor:pointer;flex:none}
+.tgl::after{content:'';position:absolute;top:2px;left:2px;width:17px;height:17px;border-radius:50%;
+  background:#5f7189;transition:all .22s cubic-bezier(.3,1.4,.5,1)}
+input:checked+.tgl{background:rgba(15,227,155,.14);border-color:rgba(15,227,155,.55)}
+input:checked+.tgl::after{left:23px;background:#0fe39b;box-shadow:0 0 10px rgba(15,227,155,.8)}
 
-  /* radar empty state */
-  .radar{position:relative;width:110px;height:110px;border-radius:50%;border:1px solid #1e2c40;
-    background:radial-gradient(circle,rgba(78,225,255,.05),transparent 70%)}
-  .radar::before{content:'';position:absolute;inset:0;border-radius:50%;
-    background:conic-gradient(from 0deg,transparent 0 78%,rgba(78,225,255,.5));animation:spin 2.6s linear infinite}
-  .radar::after{content:'';position:absolute;inset:28%;border-radius:50%;border:1px dashed #22334a}
-  @keyframes spin{to{transform:rotate(360deg)}}
+.toast{pointer-events:auto;display:flex;gap:10px;align-items:flex-start;width:min(360px,calc(100vw-32px));
+  background:rgba(11,18,30,.96);backdrop-filter:blur(6px);border:1px solid #22334a;border-radius:10px;
+  padding:11px 13px;position:relative;overflow:hidden;transform:translateX(28px);opacity:0;
+  transition:all .32s cubic-bezier(.2,.9,.3,1.1);box-shadow:0 12px 34px -12px rgba(0,0,0,.7)}
+.toast.show{transform:none;opacity:1}
+.toast .bar{position:absolute;left:0;bottom:0;height:2px;animation:barRun linear forwards}
+@keyframes barRun{from{width:100%}to{width:0}}
 
-  .hist-item{animation:sigIn .4s ease both}
-  .kbd{font-family:'IBM Plex Mono';font-size:9px;color:#5f7189;border:1px solid #22334a;border-radius:4px;padding:1px 5px}
-  .rsi-track{height:3px;background:#16222f;border-radius:2px;overflow:hidden}
-  .ring-num{font-family:'IBM Plex Mono';font-weight:700}
-  select,input[type=text]{background:#0b1420;border:1px solid #1f2d40;color:#c9d7e8;border-radius:8px;outline:none}
-  select:focus,input[type=text]:focus{border-color:rgba(78,225,255,.5)}
+.radar{position:relative;width:110px;height:110px;border-radius:50%;border:1px solid #1e2c40;
+  background:radial-gradient(circle,rgba(78,225,255,.05),transparent 70%)}
+.radar::before{content:'';position:absolute;inset:0;border-radius:50%;
+  background:conic-gradient(from 0deg,transparent 0 78%,rgba(78,225,255,.5));animation:spin 2.6s linear infinite}
+.radar::after{content:'';position:absolute;inset:28%;border-radius:50%;border:1px dashed #22334a}
+@keyframes spin{to{transform:rotate(360deg)}}
 
-  @media (prefers-reduced-motion: reduce){
-    *,*::before,*::after{animation-duration:.001s !important;animation-iteration-count:1 !important;transition-duration:.001s !important}
-    .ticker-track{animation:none}
-  }
+.hist-item{animation:sigIn .4s ease both}
+select,input[type=text],input[type=number],input[type=password],textarea{background:#0b1420;border:1px solid #1f2d40;color:#c9d7e8;border-radius:8px;outline:none}
+select:focus,input:focus,textarea:focus{border-color:rgba(78,225,255,.5)}
+.num{font-variant-numeric:tabular-nums}
+
+/* sidebar */
+.sidebar{transition:transform .28s cubic-bezier(.2,.9,.3,1);transform:translateX(-100%)}
+.sidebar.open{transform:translateX(0)}
+.nav-item{position:relative;display:block;padding:12px 14px;border-radius:10px;color:#c9d7e8;
+  font-family:'Space Grotesk';font-size:13px;font-weight:500;letter-spacing:.04em;
+  border:1px solid #16202f;transition:all .2s;cursor:pointer}
+.nav-item:hover{border-color:#2a3c54;background:rgba(78,225,255,.04)}
+.nav-item.on{color:#4ee1ff;border-color:rgba(78,225,255,.5);background:rgba(78,225,255,.08);
+  box-shadow:inset 0 0 18px -8px rgba(78,225,255,.5)}
+.nav-item.on::before{content:'';position:absolute;left:-1px;top:8px;bottom:8px;width:2px;background:#4ee1ff;border-radius:2px;box-shadow:0 0 8px #4ee1ff}
+.nav-icon{display:inline-flex;width:22px;color:#5f7189;font-family:'IBM Plex Mono';font-weight:700;font-size:11px}
+.nav-item.on .nav-icon{color:#4ee1ff}
+.scrim{transition:opacity .25s}
+
+/* views */
+.view{animation:viewIn .4s ease both}
+@keyframes viewIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* AI terminal */
+.term-line{display:flex;gap:10px;font-family:'IBM Plex Mono';font-size:11px;line-height:1.7}
+.term-line .p{color:#4ee1ff;flex:none}
+.term-line .ok{color:#0fe39b}
+.term-line .err{color:#ff3b5c}
+.term-line .w{color:#ffb224}
+.term-line .m{color:#5f7189}
+
+/* drop zone */
+.drop{border:2px dashed #2a3c54;border-radius:12px;transition:all .2s;cursor:pointer}
+.drop:hover,.drop.drag{border-color:rgba(183,148,255,.6);background:rgba(183,148,255,.04)}
+
+/* status chip */
+.schip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:6px;
+  font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.16em;font-weight:600;
+  border:1px solid #1f2d40;background:#0a101a}
+.schip.live{color:#0fe39b;border-color:rgba(15,227,155,.4);background:rgba(15,227,155,.06)}
+.schip.warn{color:#ffb224;border-color:rgba(255,178,36,.4);background:rgba(255,178,36,.06)}
+.schip.off{color:#5f7189}
+
+.zscore{display:inline-block;font-family:'IBM Plex Mono';font-size:10px;padding:1px 6px;border-radius:3px;font-weight:600}
+.zscore.hi{color:#ffb224;background:rgba(255,178,36,.12);border:1px solid rgba(255,178,36,.3)}
+.zscore.lo{color:#4ee1ff;background:rgba(78,225,255,.1);border:1px solid rgba(78,225,255,.3)}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.001s !important;animation-iteration-count:1 !important;transition-duration:.001s !important}
+  .ticker-track{animation:none}
+}
 </style>
 </head>
 
@@ -185,42 +220,48 @@ tailwind.config = {
 <div class="fixed inset-0 vignette pointer-events-none"></div>
 
 <!-- ═══════════════ TOP COMMAND BAR ═══════════════ -->
-<header class="relative z-10 border-b border-line bg-[#070b12]/90 backdrop-blur-sm">
-  <div class="max-w-[1560px] mx-auto px-4 lg:px-6 h-[62px] flex items-center gap-4">
-    <!-- brand -->
+<header class="sticky top-0 z-40 border-b border-line bg-[#070b12]/95 backdrop-blur-sm">
+  <div class="max-w-[1600px] mx-auto px-4 lg:px-6 h-[62px] flex items-center gap-3">
+    <button id="menuBtn" class="grid h-9 w-9 place-items-center rounded border border-line hover:border-ion/60 transition" title="Menu">
+      <span class="flex flex-col gap-[5px]"><i class="h-0.5 w-4 bg-slate-300"></i><i class="h-0.5 w-4 bg-slate-300"></i><i class="h-0.5 w-4 bg-slate-300"></i></span>
+    </button>
+
     <div class="flex items-center gap-3 flex-none">
-      <svg width="34" height="34" viewBox="0 0 34 34" fill="none" class="flex-none">
+      <svg width="32" height="32" viewBox="0 0 34 34" fill="none" class="flex-none">
         <rect x="1" y="1" width="32" height="32" rx="7" stroke="#4ee1ff" stroke-opacity=".45"/>
         <path d="M8 22 L14 13 L18 18 L26 9" stroke="#0fe39b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
         <path d="M22 9 h4 v4" stroke="#0fe39b" stroke-width="2" stroke-linecap="round"/>
         <circle cx="8" cy="22" r="1.8" fill="#ff3b5c"/>
       </svg>
       <div class="leading-none">
-        <div class="font-display font-bold text-[17px] tracking-wide decode" data-text="APEX//QUANT">APEX//QUANT</div>
-        <div class="font-mono text-[9px] text-muted tracking-[.28em] mt-1">SIGNAL&nbsp;ENGINE&nbsp;·&nbsp;v2.4.1</div>
+        <div class="font-display font-bold text-[16px] tracking-wide">APEX<span class="text-ion">//</span>QUANT</div>
+        <div class="font-mono text-[9px] text-muted tracking-[.28em]">PRO TERMINAL · v3.0</div>
       </div>
     </div>
 
     <div class="hidden md:block h-7 w-px bg-line2"></div>
 
-    <!-- feed status -->
-    <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-line bg-panel">
-      <span id="connDot" class="dot warn"></span>
-      <span id="connLabel" class="font-mono text-[10px] tracking-[.18em] text-otc">CONNECTING</span>
-      <span class="text-line2">|</span>
-      <span class="font-mono text-[10px] text-muted">PING <b id="latVal" class="text-paper font-semibold">--</b> ms</span>
+    <!-- broker status dots -->
+    <div class="hidden sm:flex items-center gap-1.5 flex-wrap">
+      <span class="schip" id="schBinance"><span id="binDot" class="dot off"></span>BINANCE</span>
+      <span class="schip" id="schOanda"><span id="fxDot" class="dot off"></span>FX</span>
+      <span class="schip" id="schOtc"><span id="otcDot" class="dot off"></span>OTC</span>
+      <span class="schip"><span id="connDot" class="dot warn"></span><span id="connLabel" class="text-otc">BOOT</span></span>
     </div>
 
     <div class="flex-1"></div>
 
     <!-- session stats -->
-    <div class="hidden lg:flex items-center gap-5 font-mono text-[11px]">
-      <div class="text-right"><div class="text-muted text-[9px] tracking-[.2em]">SIGNALS</div><div id="stSignals" class="font-semibold text-paper">0</div></div>
-      <div class="text-right"><div class="text-muted text-[9px] tracking-[.2em]">WIN&nbsp;RATE</div><div id="stWinrate" class="font-semibold text-call">--%</div></div>
-      <div class="text-right"><div class="text-muted text-[9px] tracking-[.2em]">STREAK</div><div id="stStreak" class="font-semibold text-paper">—</div></div>
+    <div class="hidden lg:flex items-center gap-4 font-mono text-[11px]">
+      <div class="text-right"><div class="text-muted text-[9px] tracking-[.2em]">SIGNALS</div><div id="stSignals" class="font-semibold text-paper num">0</div></div>
+      <div class="text-right"><div class="text-muted text-[9px] tracking-[.2em]">WIN RATE</div><div id="stWinrate" class="font-semibold text-call num">--%</div></div>
+      <div class="text-right"><div class="text-muted text-[9px] tracking-[.2em]">UPTIME</div><div id="stUp" class="font-semibold text-paper num">—</div></div>
     </div>
 
-    <div class="hidden md:block h-7 w-px bg-line2"></div>
+    <button id="gemBtn" class="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-gem/40 bg-gem/10 font-mono text-[10px] tracking-wider text-gem font-semibold hover:bg-gem/20 transition">
+      <span>⚡</span> AI KEY
+    </button>
+
     <div class="font-mono text-[12px] text-ion tracking-widest flex-none">
       <span id="utcClock">--:--:--</span><span class="text-muted text-[9px]"> UTC</span>
     </div>
@@ -234,160 +275,479 @@ tailwind.config = {
   </div>
 </div>
 
-<!-- ═══════════════ MAIN GRID ═══════════════ -->
-<main class="relative z-10 max-w-[1560px] mx-auto px-4 lg:px-6 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+<!-- ═══════════════ SIDEBAR ═══════════════ -->
+<nav id="sidebar" class="sidebar fixed left-0 top-0 z-50 h-full w-72 border-r border-line bg-[#070b12]/98 backdrop-blur-md p-4 overflow-y-auto">
+  <div class="flex items-center justify-between">
+    <div class="sec-label decode" data-text="NAVIGATION"><b>NAV</b></div>
+    <button id="closeMenu" class="rounded border border-line px-2 py-1 text-muted hover:text-put transition">✕</button>
+  </div>
+  <div class="mt-5 space-y-1.5">
+    <a data-view="trading" class="nav-item on"><span class="nav-icon">01</span>Quotex / Pocket Trading</a>
+    <a data-view="ai" class="nav-item"><span class="nav-icon">02</span>AI Chart Scanner</a>
+    <a data-view="strategy" class="nav-item"><span class="nav-icon">03</span>Custom Strategy Rules</a>
+    <a data-view="telegram" class="nav-item"><span class="nav-icon">04</span>Telegram Alert Manager</a>
+    <a data-view="history" class="nav-item"><span class="nav-icon">05</span>Execution History</a>
+    <a data-view="engine" class="nav-item"><span class="nav-icon">06</span>Engine Telemetry</a>
+  </div>
+  <div class="mt-8 panel corners p-3">
+    <div class="sec-label text-[10px]"><b>SYSTEM</b></div>
+    <div class="mt-2 font-mono text-[10px] text-muted leading-relaxed">
+      <div>Build <span class="text-ion">3.0.1</span></div>
+      <div>Renderer <span class="text-ion" id="sysHost">local</span></div>
+      <div>Mode <span id="ftMode" class="text-otc">BOOT</span></div>
+    </div>
+  </div>
+  <div class="mt-4 font-mono text-[9px] text-muted tracking-wider">© 2026 · APEX//QUANT</div>
+</nav>
+<div id="scrim" class="scrim fixed inset-0 z-40 hidden bg-black/60 opacity-0"></div>
 
-  <!-- ─────── LEFT: SIGNAL MATRIX ─────── -->
-  <section class="lg:col-span-8 min-w-0">
-    <div class="flex flex-wrap items-end gap-3 mb-4">
-      <div>
-        <div class="sec-label decode" data-text="01 · SIGNAL MATRIX"><b>01</b> · SIGNAL MATRIX</div>
-        <div class="font-display text-[26px] font-bold leading-tight mt-1">Live Signals <span id="visCount" class="font-mono text-[13px] text-ion align-middle">[0]</span></div>
+<!-- ═══════════════ MAIN ═══════════════ -->
+<main class="relative z-10 max-w-[1600px] mx-auto px-4 lg:px-6 py-6">
+
+  <!-- ═══════════════════════════════════════════════════════
+       VIEW 1 · TRADING (Quotex / Pocket Option style)
+  ═══════════════════════════════════════════════════════ -->
+  <section id="view-trading" class="view">
+    <!-- broker tabs -->
+    <div class="mb-4 flex flex-wrap items-center gap-2">
+      <div class="flex gap-2">
+        <button data-broker="quotex" class="broker-tab on">QUOTEX</button>
+        <button data-broker="pocket" class="broker-tab">POCKET OPTION</button>
       </div>
       <div class="flex-1"></div>
-      <div class="flex items-center gap-2 flex-wrap">
-        <nav id="tabs" class="flex items-center gap-1.5 p-1 rounded-lg border border-line bg-panel">
-          <button class="tab on" data-tab="ALL">ALL <span class="opacity-60" data-c="ALL">0</span></button>
-          <button class="tab" data-tab="CRYPTO">CRYPTO <span class="opacity-60" data-c="CRYPTO">0</span></button>
-          <button class="tab" data-tab="OTC">OTC <span class="opacity-60" data-c="OTC">0</span></button>
-        </nav>
-        <input id="search" type="text" placeholder="SEARCH PAIR…" spellcheck="false"
-               class="w-[130px] px-3 py-[7px] font-mono text-[11px] tracking-wider placeholder:text-muted/60">
+      <div class="flex gap-1.5 p-1 rounded-lg border border-line bg-panel">
+        <button class="tab on" data-tab="ALL">ALL <span class="opacity-60" data-c="ALL">0</span></button>
+        <button class="tab" data-tab="CRYPTO">CRYPTO <span class="opacity-60" data-c="CRYPTO">0</span></button>
+        <button class="tab" data-tab="OTC">OTC <span class="opacity-60" data-c="OTC">0</span></button>
+      </div>
+      <input id="search" type="text" placeholder="SEARCH PAIR…" spellcheck="false"
+             class="w-[130px] px-3 py-[7px] font-mono text-[11px] tracking-wider placeholder:text-muted/60">
+      <span id="brokerTag" class="font-mono text-[10px] text-muted tracking-wider">Broker: <b class="text-gem">Quotex</b></span>
+    </div>
+
+    <!-- candle tracker -->
+    <div class="panel corners mb-4 p-4">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+        <div class="sec-label decode" data-text="ACTIVE CANDLE TRACKER"><b>TRACKER</b> · ACTIVE CANDLE</div>
+        <span id="candleSym" class="font-mono text-sm font-bold text-paper">BTC/USDT</span>
+      </div>
+      <div class="mt-3 grid grid-cols-2 gap-3 md:grid-cols-5 font-mono text-[11px]">
+        <div class="rounded border border-line p-2 bg-ink/40"><div class="text-muted text-[9px] tracking-widest">OPEN</div><b id="cdO" class="num text-paper">—</b></div>
+        <div class="rounded border border-line p-2 bg-ink/40"><div class="text-muted text-[9px] tracking-widest">PRICE</div><b id="cdP" class="num text-paper">—</b></div>
+        <div class="rounded border border-line p-2 bg-ink/40"><div class="text-muted text-[9px] tracking-widest">RSI·14</div><b id="cdI" class="num text-ion">—</b></div>
+        <div class="rounded border border-line p-2 bg-ink/40"><div class="text-muted text-[9px] tracking-widest">REMAINING</div><b id="cdR" class="num text-otc">—</b></div>
+        <div class="rounded border border-line p-2 bg-ink/40"><div class="text-muted text-[9px] tracking-widest">TREND</div><b id="cdD" class="text-slate-400">—</b></div>
+      </div>
+      <div class="mt-3 h-1 overflow-hidden rounded-full bg-line"><div id="cdProg" class="h-full bg-call transition-all duration-1000" style="width:0%"></div></div>
+      <div class="mt-3 font-mono text-[11px] text-muted flex flex-wrap gap-x-3 gap-y-1">
+        <span>Next signal: <span id="nextSig" class="font-bold text-call">CALL</span></span>
+        <span>· Entry <b id="nextEntry" class="num text-paper">—</b></span>
+        <span>· Conf <b id="nextConf" class="num text-gem">—%</b></span>
+        <span>· Broker <b id="nextBroker" class="text-gem">Quotex</b></span>
       </div>
     </div>
 
-    <div id="hiddenPill" class="hidden mb-3 font-mono text-[10px] tracking-wider text-otc border border-otc/30 bg-otc/5 rounded-md px-3 py-1.5 w-max">
-      ⚠ <span id="hiddenN">0</span> SIGNAL(S) BELOW THRESHOLD — ADJUST IN SETTINGS
-    </div>
+    <!-- main grid: cards + chart -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-    <div id="cardGrid" class="grid grid-cols-1 xl:grid-cols-2 gap-4"></div>
+      <!-- SIGNAL MATRIX -->
+      <section class="lg:col-span-8 min-w-0">
+        <div class="flex flex-wrap items-end gap-3 mb-4">
+          <div>
+            <div class="sec-label decode" data-text="SIGNAL MATRIX"><b>01</b> · SIGNAL MATRIX</div>
+            <div class="font-display text-[24px] font-bold leading-tight mt-1">Live Signals <span id="visCount" class="font-mono text-[12px] text-ion align-middle">[0]</span></div>
+          </div>
+          <div class="flex-1"></div>
+        </div>
 
-    <div id="emptyState" class="hidden panel corners p-12 flex-col items-center justify-center gap-5 text-center">
-      <div class="radar"></div>
-      <div class="font-display font-semibold tracking-widest text-muted text-sm">SCANNING MARKETS…</div>
-      <div class="font-mono text-[10px] text-muted/70 tracking-[.2em]">AWAITING NEXT HIGH-PROBABILITY SETUP</div>
+        <div id="hiddenPill" class="hidden mb-3 font-mono text-[10px] tracking-wider text-otc border border-otc/30 bg-otc/5 rounded-md px-3 py-1.5 w-max">
+          ⚠ <span id="hiddenN">0</span> SIGNAL(S) BELOW THRESHOLD
+        </div>
+
+        <div id="cardGrid" class="grid grid-cols-1 xl:grid-cols-2 gap-4"></div>
+
+        <div id="emptyState" class="hidden panel corners p-12 flex-col items-center justify-center gap-5 text-center">
+          <div class="radar"></div>
+          <div class="font-display font-semibold tracking-widest text-muted text-sm">SCANNING MARKETS…</div>
+          <div class="font-mono text-[10px] text-muted/70 tracking-[.2em]">AWAITING NEXT HIGH-PROBABILITY SETUP</div>
+        </div>
+
+        <!-- Market table -->
+        <div class="panel corners overflow-hidden mt-6">
+          <div class="sec-label decode px-4 pt-4 pb-2" data-text="UNIVERSE WATCHLIST"><b>UNIVERSE</b> · WATCHLIST</div>
+          <div class="max-h-[420px] overflow-auto">
+            <table class="w-full min-w-[820px] text-left text-xs">
+              <thead class="font-mono text-[10px] text-muted tracking-widest">
+                <tr class="border-b border-line">
+                  <th class="px-3 py-2.5">PAIR</th>
+                  <th class="px-3 py-2.5 text-right">LAST</th>
+                  <th class="px-3 py-2.5 text-right">RSI</th>
+                  <th class="px-3 py-2.5 text-right">Z-SCORE</th>
+                  <th class="px-3 py-2.5">SIGNAL</th>
+                  <th class="px-3 py-2.5 text-right">CONF</th>
+                  <th class="px-3 py-2.5 text-right">TF</th>
+                  <th class="px-3 py-2.5"></th>
+                </tr>
+              </thead>
+              <tbody id="tblBody" class="font-mono"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- CHART -->
+      <aside class="lg:col-span-4 space-y-6 min-w-0 lg:sticky lg:top-[78px] self-start">
+        <div class="panel corners overflow-hidden">
+          <div class="px-4 pt-4 pb-3 flex items-center justify-between gap-2">
+            <div class="sec-label decode" data-text="PRICE ACTION"><b>02</b> · PRICE ACTION</div>
+            <select id="pairSelect" class="font-mono text-[11px] px-2 py-1.5 max-w-[150px]"></select>
+          </div>
+          <div class="px-4 pb-3 flex items-end justify-between gap-2">
+            <div>
+              <div class="flex items-center gap-2">
+                <span id="chPair" class="font-display font-bold text-lg">—</span>
+                <span id="chMarket" class="badge crypto">CRYPTO</span>
+              </div>
+              <div class="flex items-baseline gap-2 mt-0.5">
+                <span id="chPrice" class="font-mono text-[22px] font-semibold text-paper num">—</span>
+                <span id="chChange" class="font-mono text-[11px] text-call num">+0.00%</span>
+              </div>
+            </div>
+            <div class="text-right font-mono text-[10px] text-muted">
+              <div>CANDLE <span class="text-paper">1m</span></div>
+              <div class="mt-0.5">CLOSE IN <span id="candleCd" class="text-ion font-semibold num">--</span></div>
+            </div>
+          </div>
+          <div id="chart" class="w-full h-[262px]"></div>
+        </div>
+
+        <!-- settings -->
+        <div class="panel corners p-4">
+          <div class="flex items-center justify-between">
+            <div class="sec-label decode" data-text="CONTROL DECK"><b>03</b> · CONTROL DECK</div>
+            <span id="syncNote" class="font-mono text-[9px] text-muted tracking-widest">LOCAL</span>
+          </div>
+          <div class="mt-4">
+            <div class="flex justify-between items-baseline mb-2">
+              <label class="text-[12px] font-semibold text-[#c9d7e8]">Confidence Threshold</label>
+              <span class="font-mono text-[13px] text-ion font-semibold num"><span id="thrVal">60</span>%</span>
+            </div>
+            <input id="thr" type="range" min="50" max="95" step="1" value="60">
+            <div class="flex justify-between font-mono text-[9px] text-muted mt-1"><span>50</span><span>95</span></div>
+          </div>
+          <div class="mt-4 flex items-center justify-between">
+            <div>
+              <div class="text-[12px] font-semibold text-[#c9d7e8]">Sound Alerts</div>
+              <div class="font-mono text-[9px] text-muted mt-0.5 tracking-wider">CHIME ON SIGNALS &gt;85% CONF</div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button id="beepTest" class="btn-ghost font-mono text-[9px] px-2 py-1.5" title="Test chime">▶ TEST</button>
+              <label class="inline-flex items-center cursor-pointer">
+                <input id="snd" type="checkbox" class="sr-only">
+                <span class="tgl"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </aside>
     </div>
   </section>
 
-  <!-- ─────── RIGHT RAIL ─────── -->
-  <aside class="lg:col-span-4 space-y-6 min-w-0 lg:sticky lg:top-5 self-start">
-
-    <!-- CHART -->
-    <div class="panel corners overflow-hidden">
-      <div class="px-4 pt-4 pb-3 flex items-center justify-between gap-2">
-        <div class="sec-label decode" data-text="02 · PRICE ACTION"><b>02</b> · PRICE ACTION</div>
-        <select id="pairSelect" class="font-mono text-[11px] px-2 py-1.5 max-w-[150px]"></select>
-      </div>
-      <div class="px-4 pb-3 flex items-end justify-between gap-2">
-        <div>
-          <div class="flex items-center gap-2">
-            <span id="chPair" class="font-display font-bold text-lg">—</span>
-            <span id="chMarket" class="badge crypto">CRYPTO</span>
-          </div>
-          <div class="flex items-baseline gap-2 mt-0.5">
-            <span id="chPrice" class="font-mono text-[22px] font-semibold text-paper">—</span>
-            <span id="chChange" class="font-mono text-[11px] text-call">+0.00%</span>
-          </div>
-        </div>
-        <div class="text-right font-mono text-[10px] text-muted">
-          <div>CANDLE <span class="text-paper">1m</span></div>
-          <div class="mt-0.5">CLOSE IN <span id="candleCd" class="text-ion font-semibold">--</span></div>
-        </div>
-      </div>
-      <div id="chart" class="w-full h-[262px]"></div>
+  <!-- ═══════════════════════════════════════════════════════
+       VIEW 2 · AI CHART SCANNER
+  ═══════════════════════════════════════════════════════ -->
+  <section id="view-ai" class="view hidden">
+    <div class="mb-4">
+      <div class="sec-label decode" data-text="02 · AI CHART SCANNER"><b>02</b> · AI CHART SCANNER</div>
+      <div class="font-display text-[26px] font-bold leading-tight mt-1">Gemini <span class="text-gem">Analysis</span> Engine</div>
+      <div class="font-mono text-[11px] text-muted mt-1 tracking-wider">ISOLATED MODULE · NEVER BLOCKS LIVE SIGNALS</div>
     </div>
 
-    <!-- SETTINGS -->
-    <div class="panel corners p-4">
-      <div class="flex items-center justify-between">
-        <div class="sec-label decode" data-text="03 · CONTROL DECK"><b>03</b> · CONTROL DECK</div>
-        <span id="syncNote" class="font-mono text-[9px] text-muted tracking-widest">LOCAL</span>
+    <div class="grid gap-5 lg:grid-cols-2">
+      <!-- data-based scan -->
+      <div class="panel corners p-5">
+        <div class="flex items-center justify-between">
+          <div class="sec-label decode" data-text="DATA-BASED AI"><b>DATA</b> · OHLCV FEED</div>
+          <span class="schip live"><span class="dot live"></span>ISOLATED</span>
+        </div>
+        <p class="mt-2 font-mono text-[10px] text-muted leading-relaxed">
+          Feeds last 50 candles to Gemini for pattern analysis. Runs async — zero impact on signal feed.
+        </p>
+        <div class="mt-4 flex gap-2">
+          <input id="aiSym" class="flex-1 px-3 py-2 font-mono text-sm" placeholder="BTC/USDT">
+          <select id="aiTf" class="px-2 py-2 font-mono text-[11px]">
+            <option value="1">1m</option><option value="5">5m</option>
+            <option value="15" selected>15m</option><option value="60">1h</option>
+          </select>
+        </div>
+        <button id="aiScan" class="mt-3 w-full btn-ghost border-gem/40 text-gem hover:bg-gem/10 font-mono text-[11px] tracking-widest">⚡ RUN AI SCAN</button>
+        <div id="aiResult" class="mt-3 panel p-3 font-mono text-[11px] text-paper max-h-80 overflow-auto" style="background:#060a10;border-color:#1a2637">
+          <div class="term-line"><span class="p">&gt;</span><span class="m">awaiting scan…</span></div>
+        </div>
       </div>
 
-      <div class="mt-4">
-        <div class="flex justify-between items-baseline mb-2">
-          <label class="text-[12px] font-semibold text-[#c9d7e8]">Confidence Threshold</label>
-          <span class="font-mono text-[13px] text-ion font-semibold"><span id="thrVal">60</span>%</span>
+      <!-- vision upload -->
+      <div class="panel corners p-5">
+        <div class="flex items-center justify-between">
+          <div class="sec-label decode" data-text="VISION AI"><b>VISION</b> · CHART UPLOAD</div>
+          <span class="schip warn"><span class="dot warn"></span>OPT-IN</span>
         </div>
-        <input id="thr" type="range" min="50" max="95" step="1" value="60">
-        <div class="flex justify-between font-mono text-[9px] text-muted mt-1"><span>50</span><span>95</span></div>
+        <p class="mt-2 font-mono text-[10px] text-muted leading-relaxed">
+          Drag &amp; drop a chart screenshot. Gemini vision analyzes structure, S/R, trend.
+        </p>
+        <div id="drop" class="drop mt-4 grid h-56 place-items-center text-center">
+          <div>
+            <div class="text-4xl mb-2">📊</div>
+            <div class="font-mono text-[11px] text-muted">Drop chart here or click to browse</div>
+            <div class="font-mono text-[9px] text-muted/60 mt-1">PNG / JPG · any exchange</div>
+          </div>
+        </div>
+        <input id="fileInput" type="file" accept="image/*" class="hidden">
+        <div id="visionResult" class="mt-3 panel p-3 font-mono text-[11px] text-paper max-h-60 overflow-auto" style="background:#060a10;border-color:#1a2637">
+          <div class="term-line"><span class="p">&gt;</span><span class="m">awaiting image…</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="aiError" class="mt-4 hidden panel p-3 font-mono text-[11px] text-put border-put/40" style="background:rgba(255,59,92,.06)">
+      ⚠ AI module error (signals unaffected)
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════
+       VIEW 3 · STRATEGY RULES
+  ═══════════════════════════════════════════════════════ -->
+  <section id="view-strategy" class="view hidden">
+    <div class="mb-4">
+      <div class="sec-label decode" data-text="03 · STRATEGY RULES"><b>03</b> · CUSTOM STRATEGY RULES</div>
+      <div class="font-display text-[26px] font-bold leading-tight mt-1">Live-Applied <span class="text-ion">Engine</span> Parameters</div>
+      <div class="font-mono text-[11px] text-muted mt-1 tracking-wider">POST /api/strategy · HOT RELOAD</div>
+    </div>
+
+    <div class="grid gap-5 lg:grid-cols-3">
+      <div class="panel corners p-5">
+        <div class="sec-label decode"><b>RSI</b></div>
+        <label class="block mt-3">
+          <div class="flex justify-between items-baseline mb-1">
+            <span class="text-[11px] text-[#c9d7e8]">Oversold (low)</span>
+            <span class="font-mono text-[12px] text-call num"><span id="vRsiL">30</span></span>
+          </div>
+          <input id="stRsiL" type="range" min="10" max="45" step="1" value="30"
+            style="background:linear-gradient(90deg,#0fe39b var(--fill,44%),#1b2a3d var(--fill,44%))">
+        </label>
+        <label class="block mt-4">
+          <div class="flex justify-between items-baseline mb-1">
+            <span class="text-[11px] text-[#c9d7e8]">Overbought (high)</span>
+            <span class="font-mono text-[12px] text-put num"><span id="vRsiH">70</span></span>
+          </div>
+          <input id="stRsiH" type="range" min="55" max="90" step="1" value="70"
+            style="background:linear-gradient(90deg,#ff3b5c var(--fill,54%),#1b2a3d var(--fill,54%))">
+        </label>
       </div>
 
-      <div class="mt-4 flex items-center justify-between">
-        <div>
-          <div class="text-[12px] font-semibold text-[#c9d7e8]">Sound Alerts</div>
-          <div class="font-mono text-[9px] text-muted mt-0.5 tracking-wider">CHIME ON SIGNALS &gt;85% CONF</div>
-        </div>
-        <div class="flex items-center gap-2">
-          <button id="beepTest" class="btn-ghost font-mono text-[9px] px-2 py-1.5" title="Test chime">▶ TEST</button>
+      <div class="panel corners p-5">
+        <div class="sec-label decode"><b>STATS</b></div>
+        <label class="block mt-3">
+          <div class="flex justify-between items-baseline mb-1">
+            <span class="text-[11px] text-[#c9d7e8]">Z-Score sensitivity</span>
+            <span class="font-mono text-[12px] text-ion num"><span id="vZ">2.0</span></span>
+          </div>
+          <input id="stZ" type="range" min="1.0" max="4.0" step="0.1" value="2.0"
+            style="background:linear-gradient(90deg,#4ee1ff var(--fill,33%),#1b2a3d var(--fill,33%))">
+        </label>
+        <label class="block mt-4">
+          <div class="flex justify-between items-baseline mb-1">
+            <span class="text-[11px] text-[#c9d7e8]">ADX trend strength</span>
+            <span class="font-mono text-[12px] text-paper num"><span id="vAdx">25</span></span>
+          </div>
+          <input id="stAdx" type="range" min="15" max="50" step="1" value="25"
+            style="background:linear-gradient(90deg,#4ee1ff var(--fill,33%),#1b2a3d var(--fill,33%))">
+        </label>
+      </div>
+
+      <div class="panel corners p-5">
+        <div class="sec-label decode"><b>BREAKOUT</b></div>
+        <label class="block mt-3">
+          <div class="flex justify-between items-baseline mb-1">
+            <span class="text-[11px] text-[#c9d7e8]">S/R breakout margin</span>
+            <span class="font-mono text-[12px] text-paper num"><span id="vSr">0.15</span>%</span>
+          </div>
+          <input id="stSr" type="range" min="0.05" max="0.5" step="0.01" value="0.15"
+            style="background:linear-gradient(90deg,#4ee1ff var(--fill,33%),#1b2a3d var(--fill,33%))">
+        </label>
+        <label class="block mt-4">
+          <div class="flex justify-between items-baseline mb-1">
+            <span class="text-[11px] text-[#c9d7e8]">Min candles for trend</span>
+            <span class="font-mono text-[12px] text-paper num"><span id="vMc">14</span></span>
+          </div>
+          <input id="stMc" type="range" min="5" max="50" step="1" value="14"
+            style="background:linear-gradient(90deg,#4ee1ff var(--fill,33%),#1b2a3d var(--fill,33%))">
+        </label>
+      </div>
+    </div>
+
+    <div class="panel corners p-4 mt-5 flex flex-wrap items-center justify-between gap-3">
+      <div class="font-mono text-[10px] text-muted tracking-wider">
+        LAST SYNC: <span id="stLastSync" class="text-ion">—</span> · ENGINE: <span id="stEngineMode" class="text-call">LOCAL</span>
+      </div>
+      <div class="flex gap-2">
+        <button id="stReset" class="btn-ghost font-mono text-[10px] tracking-widest">↺ RESET</button>
+        <button id="stSave" class="btn-ghost border-call/40 text-call hover:bg-call/10 font-mono text-[11px] tracking-widest px-5">⚡ APPLY TO ENGINE</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════
+       VIEW 4 · TELEGRAM MANAGER
+  ═══════════════════════════════════════════════════════ -->
+  <section id="view-telegram" class="view hidden">
+    <div class="mb-4">
+      <div class="sec-label decode" data-text="04 · TELEGRAM MANAGER"><b>04</b> · TELEGRAM ALERT MANAGER</div>
+      <div class="font-display text-[26px] font-bold leading-tight mt-1">Channel <span class="text-ion">Broadcast</span> Control</div>
+      <div class="font-mono text-[11px] text-muted mt-1 tracking-wider">POST /api/share-telegram</div>
+    </div>
+
+    <div class="grid gap-5 lg:grid-cols-2">
+      <div class="panel corners p-5 space-y-4">
+        <div class="sec-label decode"><b>STATUS</b></div>
+
+        <div class="flex items-center justify-between rounded-lg border border-line p-3 bg-ink/40">
+          <div>
+            <div class="text-[12px] font-semibold text-[#c9d7e8]">Alerts Enabled</div>
+            <div class="font-mono text-[9px] text-muted mt-0.5 tracking-wider">AUTO-PUSH TO CHANNEL</div>
+          </div>
           <label class="inline-flex items-center cursor-pointer">
-            <input id="snd" type="checkbox" class="sr-only">
+            <input id="tgToggle" type="checkbox" class="sr-only" checked>
             <span class="tgl"></span>
           </label>
         </div>
+
+        <div class="flex items-center justify-between rounded-lg border border-line p-3 bg-ink/40">
+          <div>
+            <div class="text-[12px] font-semibold text-[#c9d7e8]">Broadcast Targets</div>
+            <div class="font-mono text-[9px] text-muted mt-0.5 tracking-wider">ACTIVE DESTINATIONS</div>
+          </div>
+          <span id="tgTargets" class="font-mono text-[12px] text-ion num font-semibold">—</span>
+        </div>
+
+        <div class="flex items-center justify-between rounded-lg border border-line p-3 bg-ink/40">
+          <div>
+            <div class="text-[12px] font-semibold text-[#c9d7e8]">Min Confidence</div>
+            <div class="font-mono text-[9px] text-muted mt-0.5 tracking-wider">ONLY PUSH ABOVE THIS</div>
+          </div>
+          <span class="font-mono text-[12px] text-gem num font-semibold">85%</span>
+        </div>
+
+        <div class="flex gap-2 pt-2">
+          <button id="tgTest" class="flex-1 btn-ghost border-ion/40 text-ion hover:bg-ion/10 font-mono text-[11px] tracking-widest">📤 SEND TEST ALERT</button>
+          <button id="tgBroadcast" class="flex-1 btn-ghost border-call/40 text-call hover:bg-call/10 font-mono text-[11px] tracking-widest">🚨 BROADCAST LAST SIGNAL</button>
+        </div>
+        <p id="tgMsg" class="font-mono text-[10px] text-muted"></p>
       </div>
-      <div class="mt-4 pt-3 border-t border-line font-mono text-[9px] text-muted tracking-wider flex justify-between">
-        <span>SETTINGS SYNC → <span class="text-ion">POST /api/settings</span></span>
+
+      <div class="panel corners p-5">
+        <div class="sec-label decode"><b>RECENT PUSHES</b></div>
+        <div id="tgHistory" class="mt-3 space-y-1.5 font-mono text-[10.5px] max-h-[360px] overflow-y-auto pr-1">
+          <div class="text-muted/60">— no broadcasts yet —</div>
+        </div>
       </div>
     </div>
+  </section>
 
-    <!-- ENGINE STATS -->
+  <!-- ═══════════════════════════════════════════════════════
+       VIEW 5 · HISTORY
+  ═══════════════════════════════════════════════════════ -->
+  <section id="view-history" class="view hidden">
+    <div class="mb-4">
+      <div class="sec-label decode" data-text="05 · EXECUTION HISTORY"><b>05</b> · EXECUTION HISTORY</div>
+      <div class="font-display text-[26px] font-bold leading-tight mt-1">Closed <span class="text-ion">Trades</span></div>
+    </div>
+    <div class="grid gap-4 lg:grid-cols-4 mb-5">
+      <div class="panel corners p-4">
+        <div class="sec-label text-[10px]"><b>TOTAL</b></div>
+        <div id="hTotal" class="font-display text-[28px] font-bold text-paper num mt-2">0</div>
+      </div>
+      <div class="panel corners p-4">
+        <div class="sec-label text-[10px]"><b>WINS</b></div>
+        <div id="hWins" class="font-display text-[28px] font-bold text-call num mt-2">0</div>
+      </div>
+      <div class="panel corners p-4">
+        <div class="sec-label text-[10px]"><b>LOSSES</b></div>
+        <div id="hLoss" class="font-display text-[28px] font-bold text-put num mt-2">0</div>
+      </div>
+      <div class="panel corners p-4">
+        <div class="sec-label text-[10px]"><b>WIN RATE</b></div>
+        <div id="hWr" class="font-display text-[28px] font-bold text-gem num mt-2">—%</div>
+      </div>
+    </div>
     <div class="panel corners p-4">
-      <div class="sec-label decode" data-text="04 · ENGINE TELEMETRY"><b>04</b> · ENGINE TELEMETRY</div>
-      <div class="flex items-center gap-4 mt-4">
-        <svg width="84" height="84" viewBox="0 0 84 84" class="flex-none -rotate-90">
-          <circle cx="42" cy="42" r="34" fill="none" stroke="#152232" stroke-width="7"/>
-          <circle id="wrRing" cx="42" cy="42" r="34" fill="none" stroke="#0fe39b" stroke-width="7"
-                  stroke-linecap="round" stroke-dasharray="213.6" stroke-dashoffset="213.6"
-                  style="transition:stroke-dashoffset .8s cubic-bezier(.2,.8,.2,1)"/>
-        </svg>
-        <div class="grid grid-cols-2 gap-x-6 gap-y-2 font-mono text-[11px] flex-1">
-          <div><div class="text-muted text-[9px] tracking-[.18em]">WINS</div><div id="sWins" class="text-call font-semibold">0</div></div>
-          <div><div class="text-muted text-[9px] tracking-[.18em]">LOSSES</div><div id="sLoss" class="text-put font-semibold">0</div></div>
-          <div><div class="text-muted text-[9px] tracking-[.18em]">AVG CONF</div><div id="sConf" class="text-paper font-semibold">--</div></div>
-          <div><div class="text-muted text-[9px] tracking-[.18em]">UPTIME</div><div id="sUp" class="text-paper font-semibold">00:00</div></div>
-        </div>
-      </div>
-
-      <div class="mt-4 pt-3 border-t border-line">
-        <div class="font-mono text-[9px] text-muted tracking-[.2em] mb-2">RECENT EXECUTIONS</div>
-        <div id="histList" class="space-y-1.5 font-mono text-[10.5px] max-h-[150px] overflow-y-auto pr-1">
-          <div class="text-muted/60">— no executions yet —</div>
-        </div>
+      <div class="sec-label decode"><b>LOG</b></div>
+      <div id="hList" class="mt-3 space-y-1.5 font-mono text-[10.5px] max-h-[500px] overflow-y-auto pr-1">
+        <div class="text-muted/60">— no executions yet —</div>
       </div>
     </div>
-  </aside>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════
+       VIEW 6 · ENGINE TELEMETRY
+  ═══════════════════════════════════════════════════════ -->
+  <section id="view-engine" class="view hidden">
+    <div class="mb-4">
+      <div class="sec-label decode" data-text="06 · ENGINE TELEMETRY"><b>06</b> · ENGINE TELEMETRY</div>
+      <div class="font-display text-[26px] font-bold leading-tight mt-1">Backend <span class="text-ion">Health</span> Monitor</div>
+    </div>
+    <div class="grid gap-4 sm:grid-cols-3">
+      <div class="panel corners p-4">
+        <div class="sec-label"><b>/api/status</b></div>
+        <div class="font-mono text-[10px] text-muted mt-2">poll 1000ms</div>
+        <div class="flex items-center gap-2 mt-3"><span id="h1" class="schip off">IDLE</span><span id="h1lat" class="font-mono text-[11px] text-muted num">—</span></div>
+      </div>
+      <div class="panel corners p-4">
+        <div class="sec-label"><b>/api/settings</b></div>
+        <div class="font-mono text-[10px] text-muted mt-2">threshold · alerts</div>
+        <div class="flex items-center gap-2 mt-3"><span id="h2" class="schip off">IDLE</span><span id="h2lat" class="font-mono text-[11px] text-muted num">—</span></div>
+      </div>
+      <div class="panel corners p-4">
+        <div class="sec-label"><b>/api/share-telegram</b></div>
+        <div class="font-mono text-[10px] text-muted mt-2">signal → channel</div>
+        <div class="flex items-center gap-2 mt-3"><span id="h3" class="schip off">IDLE</span><span id="h3lat" class="font-mono text-[11px] text-muted num">—</span></div>
+      </div>
+      <div class="panel corners p-4">
+        <div class="sec-label"><b>/api/strategy</b></div>
+        <div class="font-mono text-[10px] text-muted mt-2">rule engine</div>
+        <div class="flex items-center gap-2 mt-3"><span id="h4" class="schip off">IDLE</span><span id="h4lat" class="font-mono text-[11px] text-muted num">—</span></div>
+      </div>
+      <div class="panel corners p-4">
+        <div class="sec-label"><b>/api/ai/scan</b></div>
+        <div class="font-mono text-[10px] text-muted mt-2">gemini data</div>
+        <div class="flex items-center gap-2 mt-3"><span id="h5" class="schip off">IDLE</span><span id="h5lat" class="font-mono text-[11px] text-muted num">—</span></div>
+      </div>
+      <div class="panel corners p-4">
+        <div class="sec-label"><b>/api/gemini/key</b></div>
+        <div class="font-mono text-[10px] text-muted mt-2">memory only</div>
+        <div class="flex items-center gap-2 mt-3"><span id="h6" class="schip off">IDLE</span><span id="h6lat" class="font-mono text-[11px] text-muted num">—</span></div>
+      </div>
+    </div>
+  </section>
+
 </main>
 
-<!-- ═══════════════ ENDPOINT HEALTH FOOTER ═══════════════ -->
-<footer class="relative z-10 border-t border-line bg-[#060a10] mt-4">
-  <div class="max-w-[1560px] mx-auto px-4 lg:px-6 py-4">
-    <div class="sec-label mb-3 decode" data-text="05 · BACKEND LINK — EXPRESS / RENDER"><b>05</b> · BACKEND LINK — EXPRESS / RENDER</div>
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-      <div class="border border-line rounded-lg px-3 py-2.5 bg-panel flex items-center justify-between gap-2">
-        <div class="min-w-0"><div class="font-mono text-[11px] text-paper truncate">GET /api/status</div>
-          <div class="font-mono text-[9px] text-muted mt-0.5">poll 1000ms · <span id="h1lat">—</span></div></div>
-        <span id="h1" class="font-mono text-[9px] tracking-widest px-2 py-1 rounded border border-line2 text-muted flex-none">IDLE</span>
-      </div>
-      <div class="border border-line rounded-lg px-3 py-2.5 bg-panel flex items-center justify-between gap-2">
-        <div class="min-w-0"><div class="font-mono text-[11px] text-paper truncate">GET/POST /api/settings</div>
-          <div class="font-mono text-[9px] text-muted mt-0.5">threshold · alerts · <span id="h2lat">—</span></div></div>
-        <span id="h2" class="font-mono text-[9px] tracking-widest px-2 py-1 rounded border border-line2 text-muted flex-none">IDLE</span>
-      </div>
-      <div class="border border-line rounded-lg px-3 py-2.5 bg-panel flex items-center justify-between gap-2">
-        <div class="min-w-0"><div class="font-mono text-[11px] text-paper truncate">POST /api/share-telegram</div>
-          <div class="font-mono text-[9px] text-muted mt-0.5">signal → channel · <span id="h3lat">—</span></div></div>
-        <span id="h3" class="font-mono text-[9px] tracking-widest px-2 py-1 rounded border border-line2 text-muted flex-none">IDLE</span>
-      </div>
+<!-- ═══════════════ GEMINI MODAL ═══════════════ -->
+<div id="gemModal" class="fixed inset-0 z-[60] hidden place-items-center bg-black/70 backdrop-blur-sm">
+  <div class="panel corners w-[420px] p-6 max-w-[92vw]">
+    <div class="flex items-center justify-between">
+      <div class="sec-label decode" data-text="GEMINI API KEY"><b>GEMINI</b> · API KEY</div>
+      <button id="gemClose" class="rounded border border-line px-2 py-1 text-muted hover:text-put transition">✕</button>
     </div>
-    <div class="mt-3 flex flex-wrap justify-between gap-2 font-mono text-[9px] text-muted/70 tracking-wider">
-      <span>APEX//QUANT TERMINAL · BUILD 2026.08.08 · KEYED-DOM PATCH ENGINE · ZERO-FREEZE FEED</span>
-      <span>MODE: <span id="ftMode" class="text-otc">BOOT</span></span>
+    <p class="mt-2 font-mono text-[10px] text-muted leading-relaxed">Stored in memory only — never written to disk. Sent via POST /api/gemini/key.</p>
+    <input id="gemKey" type="password" placeholder="AIza…" class="mt-4 w-full px-3 py-2.5 font-mono text-sm">
+    <div class="mt-4 flex gap-2">
+      <button id="gemSave" class="flex-1 btn-ghost border-gem/40 text-gem hover:bg-gem/10 font-mono text-[11px] tracking-widest">SAVE</button>
+      <button id="gemClear" class="btn-ghost font-mono text-[11px] tracking-widest">CLEAR</button>
     </div>
+    <p id="gemStatus" class="mt-3 font-mono text-[10px] text-muted"></p>
   </div>
-</footer>
-
-<div id="toasts" class="fixed bottom-4 right-4 z-[80] flex flex-col gap-2 pointer-events-none"></div>
+</div>
 
 <!-- ═══════════════ SIGNAL CARD TEMPLATE ═══════════════ -->
 <template id="tplCard">
@@ -396,38 +756,41 @@ tailwind.config = {
       <div class="flex items-center gap-2 min-w-0">
         <h3 class="font-display font-bold text-[15px] tracking-wide truncate c-pair"></h3>
         <span class="badge c-badge">CRYPTO</span>
-        <span class="font-mono text-[9px] text-muted/70 c-hash"></span>
+        <span class="font-mono text-[9px] text-muted/70 c-hash num"></span>
       </div>
-      <span class="font-mono text-[11px] px-2 py-[3px] rounded border border-line2 bg-ink/60 c-cd text-ion">--:--</span>
+      <span class="font-mono text-[11px] px-2 py-[3px] rounded border border-line2 bg-ink/60 c-cd text-ion num">--:--</span>
     </header>
 
     <div class="px-4 mt-3 flex items-center justify-between gap-3">
       <span class="dchip c-dir">▲ CALL</span>
-      <div class="relative w-[52px] h-[52px] flex-none">
-        <svg viewBox="0 0 52 52" class="w-full h-full -rotate-90">
-          <circle cx="26" cy="26" r="21" fill="none" stroke="#182636" stroke-width="4.5"/>
-          <circle class="c-arc" cx="26" cy="26" r="21" fill="none" stroke="#0fe39b" stroke-width="4.5"
-                  stroke-linecap="round" stroke-dasharray="131.9" stroke-dashoffset="131.9"
-                  style="transition:stroke-dashoffset .6s ease"/>
-        </svg>
-        <div class="absolute inset-0 grid place-items-center ring-num text-[13px] c-confn">0%</div>
+      <div class="flex items-center gap-2">
+        <span class="zscore c-zscore">Z:0.00</span>
+        <div class="relative w-[52px] h-[52px] flex-none">
+          <svg viewBox="0 0 52 52" class="w-full h-full -rotate-90">
+            <circle cx="26" cy="26" r="21" fill="none" stroke="#182636" stroke-width="4.5"/>
+            <circle class="c-arc" cx="26" cy="26" r="21" fill="none" stroke="#0fe39b" stroke-width="4.5"
+                    stroke-linecap="round" stroke-dasharray="131.9" stroke-dashoffset="131.9"
+                    style="transition:stroke-dashoffset .6s ease"/>
+          </svg>
+          <div class="absolute inset-0 grid place-items-center font-mono text-[13px] font-bold c-confn num">0%</div>
+        </div>
       </div>
     </div>
 
     <div class="px-4 mt-3 grid grid-cols-3 gap-2 font-mono text-[11px]">
       <div class="bg-ink/50 border border-line rounded-lg px-2.5 py-2">
         <div class="text-[8.5px] text-muted tracking-[.18em]">ENTRY</div>
-        <div class="c-entry font-semibold text-paper mt-0.5 rounded px-0.5 -mx-0.5">—</div>
+        <div class="c-entry font-semibold text-paper mt-0.5 rounded px-0.5 -mx-0.5 num">—</div>
       </div>
       <div class="bg-ink/50 border border-line rounded-lg px-2.5 py-2">
         <div class="text-[8.5px] text-muted tracking-[.18em]">RSI·14</div>
-        <div class="c-rsi font-semibold mt-0.5">—</div>
-        <div class="rsi-track mt-1.5"><div class="c-rbar h-full rounded" style="width:50%"></div></div>
+        <div class="c-rsi font-semibold mt-0.5 num">—</div>
+        <div class="h-[3px] bg-line rounded mt-1.5 overflow-hidden"><div class="c-rbar h-full rounded" style="width:50%"></div></div>
       </div>
       <div class="bg-ink/50 border border-line rounded-lg px-2.5 py-2">
-        <div class="text-[8.5px] text-muted tracking-[.18em]">CANDLE</div>
-        <div class="c-candle font-semibold text-paper mt-0.5">1m</div>
-        <div class="c-born text-[8.5px] text-muted mt-0.5">—</div>
+        <div class="text-[8.5px] text-muted tracking-[.18em]">BROKER</div>
+        <div class="c-broker font-semibold text-gem mt-0.5">Quotex</div>
+        <div class="c-born text-[8.5px] text-muted mt-0.5 num">—</div>
       </div>
     </div>
 
@@ -437,8 +800,11 @@ tailwind.config = {
 
     <footer class="px-4 py-3 flex gap-2">
       <button class="btn-tg c-share">
-        <svg class="c-tgicon w-[13px] h-[13px] flex-none" viewBox="0 0 24 24" fill="currentColor"><path d="M2.4 11.1 21 3.3c.9-.4 1.8.5 1.4 1.4l-4.6 17c-.3 1-1.6 1.2-2.2.4l-3.9-4.8-2.6 2.5c-.6.6-1.6.2-1.7-.6l-.4-4.4-4.6-1.9c-.9-.4-.9-1.6 0-1.8Zm5.4 2.5 8.4-5.3c.3-.2.6.2.4.5l-6.7 6.3-.3 3 1.5-1.7Z"/></svg>
+        <svg class="c-tgicon w-[13px] h-[13px] flex-none" viewBox="0 0 24 24" fill="currentColor"><path d="M2.4 11.1 21 3.3c.9-.4 1.8.5 1.4 1.4l-4.6 17c-.3 1-1.6 1.2-2.2.4l-3.9-4.8-2.6 2.5c-.6.6-1.6.2-1.7-.6l-.4-4.4-4.6-1.9c-.9-.4-.9-1.6 0-1.8Z"/></svg>
         <span class="c-sharetxt">SHARE TO TELEGRAM</span>
+      </button>
+      <button class="btn-ghost c-watch" title="Watch on chart">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7Z"/></svg>
       </button>
       <button class="btn-ghost c-copy" title="Copy signal">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
@@ -447,22 +813,31 @@ tailwind.config = {
   </article>
 </template>
 
+<div id="toasts" class="fixed bottom-4 right-4 z-[80] flex flex-col gap-2 pointer-events-none"></div>
+
 <script>
+'use strict';
 /* ═════════════════════════════════════════════════════════════════
-   APEX//QUANT TERMINAL — zero-freeze feed engine
-   ▸ Patch-based keyed DOM (cards are updated, never rebuilt)
-   ▸ 1s chained polling (no overlap) + optional WS upgrade (/ws)
-   ▸ Silent fallback to simulated feed; cards never cleared
+   APEX//QUANT PRO TERMINAL — v3.0
+   ▸ Zero-freeze feed engine (polling + WS upgrade + silent sim)
+   ▸ 6 Views: Trading, AI Scanner, Strategy, Telegram, History, Telemetry
+   ▸ Multi-broker support: Quotex / Pocket Option
+   ▸ Gemini integration: data-scan + vision upload (memory-only key)
 ═════════════════════════════════════════════════════════════════ */
 
-/* ── CONFIG ─────────────────────────────────────────────────────── */
-const API_BASE = '';   // ← point at your Render service, e.g. 'https://your-engine.onrender.com'
+const API_BASE = '';   // ← point at your Render URL, e.g. 'https://your-engine.onrender.com'
 const API = {
-  status : API_BASE + '/api/status',
-  settings: API_BASE + '/api/settings',
-  share  : API_BASE + '/api/share-telegram',
+  status   : API_BASE + '/api/status',
+  settings : API_BASE + '/api/settings',
+  share    : API_BASE + '/api/share-telegram',
+  strategy : API_BASE + '/api/strategy',
+  aiScan   : API_BASE + '/api/ai/scan',
+  analyze  : API_BASE + '/api/analyze-chart',
+  gemKey   : API_BASE + '/api/gemini/key',
+  gemClear : API_BASE + '/api/gemini/clear',
+  tgTest   : API_BASE + '/api/telegram/test',
 };
-const POLL_MS = 1000, FETCH_TIMEOUT = 2200, FAIL_TO_SIM = 4;
+const POLL_MS=1000, FETCH_TIMEOUT=2200, FAIL_TO_SIM=4;
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const $  = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -492,16 +867,18 @@ const CFG=Object.fromEntries(ALL_PAIRS.map(p=>[p.sym,p]));
 const S={
   mode:'connecting', fails:0, ws:null, wsLive:false, lastLat:null,
   signals:new Map(), elMap:new Map(), order:[],
-  tab:'ALL', q:'',
+  tab:'ALL', q:'', broker:'quotex',
   settings:{threshold:60,sound:false},
-  stats:{wins:0,losses:0,filtered:0,total:0,sumConf:0,confN:0,streak:0},
+  strategy:{rsiLow:30,rsiHigh:70,zscoreMin:2.0,adxMin:25,srBreakout:0.15,minCandles:14},
+  stats:{wins:0,losses:0,filtered:0,total:0,streak:0},
   mkt:{}, bootTs:Date.now(), chartSym:null, selSym:null, shareLast:null,
+  tgHistory:[], gemKeySet:false,
 };
-ALL_PAIRS.forEach(c=>S.mkt[c.sym]={p:c.base,start:c.base,mom:0,d:[],rsi:50});
+ALL_PAIRS.forEach(c=>S.mkt[c.sym]={p:c.base,start:c.base,mom:0,d:[],rsi:50,z:0});
 
 /* ── TOASTS ─────────────────────────────────────────────────────── */
-const TICONS={success:'✓',error:'✕',info:'ℹ'};
-const TCOL={success:'#0fe39b',error:'#ff3b5c',info:'#4ee1ff'};
+const TICONS={success:'✓',error:'✕',info:'ℹ',warn:'⚠'};
+const TCOL={success:'#0fe39b',error:'#ff3b5c',info:'#4ee1ff',warn:'#ffb224'};
 function toast(type,title,msg,ms=3600){
   const root=$('#toasts'),el=document.createElement('div');
   el.className='toast';
@@ -514,7 +891,7 @@ function toast(type,title,msg,ms=3600){
   setTimeout(()=>{el.classList.remove('show');setTimeout(()=>el.remove(),350)},ms);
 }
 
-/* ── SOUND ENGINE (WebAudio, gesture-gated) ─────────────────────── */
+/* ── SOUND ENGINE ─────────────────────────────────────────────── */
 let actx=null;
 function chime(dir){
   if(!S.settings.sound) return;
@@ -534,7 +911,38 @@ function chime(dir){
   }catch(e){}
 }
 
-/* ── SCRAMBLE-DECODE TITLES ─────────────────────────────────────── */
+/* ── SIDEBAR NAV ─────────────────────────────────────────────── */
+function openNav(on){
+  $('#sidebar').classList.toggle('open',on);
+  $('#scrim').classList.toggle('hidden',!on);
+  $('#scrim').style.opacity = on ? '1' : '0';
+  setTimeout(()=>{if(!on)$('#scrim').classList.add('hidden')},250);
+}
+$('#menuBtn').onclick=()=>openNav(true);
+$('#closeMenu').onclick=()=>openNav(false);
+$('#scrim').onclick=()=>openNav(false);
+$$('.nav-item').forEach(a=>a.onclick=()=>{
+  $$('.nav-item').forEach(x=>x.classList.remove('on'));
+  a.classList.add('on');
+  switchView(a.dataset.view);
+  if(window.innerWidth<1024) openNav(false);
+});
+function switchView(v){
+  $$('.view').forEach(s=>s.classList.add('hidden'));
+  const t=$('#view-'+v); if(t) t.classList.remove('hidden');
+}
+
+/* ── BROKER TABS ────────────────────────────────────────────── */
+$$('.broker-tab').forEach(b=>b.onclick=()=>{
+  $$('.broker-tab').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');
+  S.broker=b.dataset.broker;
+  $('#brokerTag').innerHTML=`Broker: <b class="text-gem">${S.broker==='quotex'?'Quotex':'Pocket Option'}</b>`;
+  $('#nextBroker').textContent = S.broker==='quotex'?'Quotex':'Pocket Option';
+  $$('.c-broker').forEach(e=>e.textContent=S.broker==='quotex'?'Quotex':'Pocket Option');
+});
+
+/* ── SCRAMBLE-DECODE ─────────────────────────────────────────── */
 const GLYPHS='01▓▒░<>/\\#@$%&';
 function decode(el){
   const txt=el.dataset.text||el.textContent; el.dataset.text=txt;
@@ -547,14 +955,15 @@ function decode(el){
   },34);
 }
 
-/* ── CLOCK & UPTIME ─────────────────────────────────────────────── */
+/* ── CLOCK & UPTIME ──────────────────────────────────────────── */
 setInterval(()=>{
   $('#utcClock').textContent=hms(Date.now());
   const up=Math.floor((Date.now()-S.bootTs)/1000);
-  $('#sUp').textContent=`${p2(Math.floor(up/60))}:${p2(up%60)}`;
+  const h=Math.floor(up/3600),m=Math.floor((up%3600)/60),s=up%60;
+  $('#stUp').textContent=(h?h+'h ':'')+m+'m '+s+'s';
 },1000);
 
-/* ── TICKER TAPE ────────────────────────────────────────────────── */
+/* ── TICKER TAPE ─────────────────────────────────────────────── */
 const tickRefs={};
 (function buildTicker(){
   const track=$('#tickerTrack');
@@ -563,7 +972,7 @@ const tickRefs={};
       const el=document.createElement('span');
       el.className='flex items-center gap-2 flex-none';
       el.innerHTML=`<b class="text-[#c9d7e8] font-semibold">${c.sym}</b>
-        <span class="tk-p text-muted">—</span><span class="tk-d text-[10px]">—</span>`;
+        <span class="tk-p text-muted num">—</span><span class="tk-d text-[10px] num">—</span>`;
       track.appendChild(el);
       (tickRefs[c.sym]=tickRefs[c.sym]||{}).side=side;
       tickRefs[c.sym][side]={p:el.querySelector('.tk-p'),d:el.querySelector('.tk-d')};
@@ -576,14 +985,14 @@ function updateTicker(){
     for(const side in tickRefs[sym]){ if(side==='side')continue;
       const r=tickRefs[sym][side];
       r.p.textContent=fmtPrice(m.p,CFG[sym].dp);
-      r.p.className='tk-p '+(up?'text-call':'text-put');
+      r.p.className='tk-p num '+(up?'text-call':'text-put');
       r.d.textContent=(up?'▲':'▼')+Math.abs(pct).toFixed(2)+'%';
-      r.d.className='tk-d text-[10px] '+(up?'text-call/70':'text-put/70');
+      r.d.className='tk-d text-[10px] num '+(up?'text-call/70':'text-put/70');
     }
   }
 }
 
-/* ── MARKET SIMULATION (fallback feed + chart driver) ───────────── */
+/* ── MARKET SIMULATION ───────────────────────────────────────── */
 function stepPrices(){
   ALL_PAIRS.forEach(c=>{
     const m=S.mkt[c.sym];
@@ -593,6 +1002,11 @@ function stepPrices(){
     const d=m.p-prev; m.d.push(d); if(m.d.length>20)m.d.shift();
     let g=0,l=0; m.d.slice(-14).forEach(x=>x>=0?g+=x:l-=x);
     m.rsi=l===0?100:100-100/(1+(g/14)/((l/14)||1e-9));
+    // z-score
+    const slice=m.d.slice(-20);
+    const mean=slice.reduce((a,b)=>a+b,0)/Math.max(1,slice.length);
+    const sd=Math.sqrt(slice.reduce((a,b)=>a+(b-mean)**2,0)/Math.max(1,slice.length))||1;
+    m.z=(d-mean)/sd;
   });
 }
 function rsiColor(v){return v>=70?'text-put':v<=30?'text-call':'text-paper'}
@@ -602,7 +1016,7 @@ let simIv=null;
 function startSim(){
   if(simIv) return;
   S.mode='sim'; setConn();
-  simIv=setInterval(()=>{                       // emits 1 signal every ~3–8s
+  simIv=setInterval(()=>{
     if(S.signals.size<10 && Math.random()<.22) emitSimSignal();
   },1000);
 }
@@ -617,8 +1031,8 @@ function emitSimSignal(){
   const candle=[15,30,60,60,300][(Math.random()*5)|0];
   const now=Date.now();
   const sig={id:'SIM'+now.toString(36)+Math.floor(Math.random()*999),pair:c.sym,market,direction:dir,
-    confidence:conf,rsi:m.rsi,entry:m.p,dp:c.dp,candleTime:candle,expireAt:now+candle*1000,
-    createdAt:now,phase:'active',result:null,source:'sim'};
+    confidence:conf,rsi:m.rsi,zscore:+m.z.toFixed(2),entry:m.p,dp:c.dp,candleTime:candle,
+    expireAt:now+candle*1000,createdAt:now,phase:'active',result:null,source:'sim'};
   S.signals.set(sig.id,sig); mountCard(sig,true); S.stats.total++;
   if(conf<=S.settings.threshold) S.stats.filtered++;
   if(conf>85) chime(dir);
@@ -632,23 +1046,24 @@ function closeSignal(s){
   if(s.result==='WIN'){S.stats.wins++;S.stats.streak=S.stats.streak>=0?S.stats.streak+1:1}
   else if(s.result==='LOSS'){S.stats.losses++;S.stats.streak=S.stats.streak<=0?S.stats.streak-1:-1}
   if(s.result) pushHistory(s);
+  updateHistoryView();
 }
 function pushHistory(s){
-  const list=$('#histList');
-  if(list.firstElementChild && !s.result) return;
+  const list=$('#hList');
   if(list.firstElementChild && list.firstElementChild.textContent.startsWith('—')) list.innerHTML='';
   const el=document.createElement('div');
-  el.className='hist-item flex items-center gap-2 text-[10.5px]';
+  el.className='hist-item flex items-center gap-2 text-[10.5px] py-1.5 border-b border-line/50';
   const rc=s.result==='WIN'?'text-call':s.result==='LOSS'?'text-put':'text-muted';
-  el.innerHTML=`<span class="text-muted/70">${hms(s.createdAt)}</span>
+  el.innerHTML=`<span class="text-muted/70 num">${hms(s.createdAt)}</span>
     <span class="text-[#c9d7e8] font-semibold">${s.pair}</span>
     <span class="${s.direction==='CALL'?'text-call':'text-put'}">${s.direction==='CALL'?'▲':'▼'} ${s.direction}</span>
+    <span class="font-mono text-[9px] text-gem">${s.confidence}%</span>
     <span class="flex-1"></span><span class="${rc} font-bold">${s.result||'—'}</span>`;
   list.prepend(el);
-  while(list.children.length>9) list.lastChild.remove();
+  while(list.children.length>40) list.lastChild.remove();
 }
 
-/* ── FEED CONTROLLER: WS upgrade → polling → silent sim fallback ── */
+/* ── FEED CONTROLLER ─────────────────────────────────────────── */
 function tryWS(){
   if(!location.host || !/^https?:$/.test(location.protocol)) return;
   try{
@@ -683,6 +1098,7 @@ function normalize(raw){
     const created=Number(x.timestamp??x.created_at??now);
     return { id:String(x.id??(pair+direction+(x.timestamp??'')))+i, pair, market, direction,
       confidence:Number(x.confidence??x.conf??0), rsi:Number(x.rsi??50),
+      zscore:Number(x.zscore??x.z??0),
       entry:Number(x.entryPrice??x.entry??x.price??0), dp:Number.isFinite(+x.dp)?+x.dp:(pair.includes('OTC')?5:2),
       candleTime:candle, expireAt:created+candle*1000, createdAt:created,
       phase:'active', result:/WIN/.test(String(x.status||''))?'WIN':/LOSS|LOST/.test(String(x.status||''))?'LOSS':null,
@@ -692,25 +1108,28 @@ function normalize(raw){
 function ingest(raw,lat){
   const wasSim=S.mode==='sim';
   S.mode='live'; S.fails=0; S.lastLat=lat; setConn();
-  $('#h1').textContent='LIVE'; $('#h1').className=chipCls('ok'); $('#h1lat').textContent=lat+'ms';
-  if(wasSim){ // drop simulated placeholders only — user cards never wiped on reconnect
+  $('#h1').textContent='LIVE'; $('#h1').className='schip live'; $('#h1lat').textContent=lat+'ms';
+  // backend-reported broker status
+  if(raw?.binance!==undefined) setBrokerDot('binDot',!!raw.binance,'schBinance');
+  if(raw?.oanda!==undefined) setBrokerDot('fxDot',!!raw.oanda,'schOanda');
+  if(raw?.otc!==undefined) setBrokerDot('otcDot',!!raw.otc,'schOtc');
+  if(wasSim){
     [...S.signals.values()].filter(s=>s.source==='sim'&&s.phase==='active').forEach(s=>s.removeAt=Date.now()+400);
-    stopSim(); toast('success','LIVE FEED RESTORED','Reconnected to engine — simulated feed retired.');
+    stopSim(); toast('success','LIVE FEED RESTORED','Reconnected to engine.');
   }
   const list=normalize(raw), seen=new Set(), now=Date.now();
   list.forEach(s=>{
     seen.add(s.id);
     const prev=S.signals.get(s.id);
-    if(prev){ Object.assign(prev,{confidence:s.confidence,rsi:s.rsi,entry:s.entry,result:s.result});
+    if(prev){ Object.assign(prev,{confidence:s.confidence,rsi:s.rsi,zscore:s.zscore,entry:s.entry,result:s.result});
       if(s.result&&!prev.removeAt) closeSignal(prev); }
     else{ S.signals.set(s.id,s); mountCard(s,true); S.stats.total++;
       if(s.confidence<=S.settings.threshold) S.stats.filtered++;
       if(s.confidence>85) chime(s.direction); }
   });
-  // graceful retirement of signals that left the live feed (no fake outcomes)
   S.signals.forEach(s=>{ if(s.source==='live'&&s.phase==='active'&&!seen.has(s.id)){
     if(!s._miss) s._miss=now; else if(now-s._miss>6000){s.result=null;closeSignal(s)} } });
-  if(raw?.stats){ // adopt engine-reported stats when provided
+  if(raw?.stats){
     const st=raw.stats;
     if(Number.isFinite(+st.winRate)) S.stats.winRateOverride=+st.winRate;
     if(Number.isFinite(+st.wins)) S.stats.wins=+st.wins;
@@ -720,37 +1139,37 @@ function ingest(raw,lat){
 }
 function onFeedError(){
   S.fails++;
-  if(S.fails>=FAIL_TO_SIM && S.mode!=='sim'){ startSim(); toast('info','ENGINE UNREACHABLE','Silent fallback engaged — simulated feed active. Your cards are preserved.'); }
+  if(S.fails>=FAIL_TO_SIM && S.mode!=='sim'){ startSim(); toast('info','ENGINE UNREACHABLE','Silent fallback engaged.'); }
   else if(S.mode!=='sim'){ S.mode='connecting'; }
   setConn();
-  $('#h1').textContent='OFFLINE'; $('#h1').className=chipCls('bad');
+  $('#h1').textContent='OFFLINE'; $('#h1').className='schip off';
 }
-function chipCls(k){const b='font-mono text-[9px] tracking-widest px-2 py-1 rounded border flex-none ';
-  return k==='ok'?b+'text-call border-call/40 bg-call/10':k==='bad'?b+'text-put border-put/40 bg-put/10'
-  :k==='warn'?b+'text-otc border-otc/40 bg-otc/10':b+'text-muted border-line2'}
+function setBrokerDot(id,on,wrapId){
+  const e=$('#'+id); e.className='dot '+(on?'live dot-live':'off');
+  const w=$('#'+wrapId); if(w) w.className='schip '+(on?'live':'off');
+}
 function setConn(){
   const d=$('#connDot'),l=$('#connLabel'),f=$('#ftMode');
-  if(S.wsLive){d.className='dot live';l.textContent='LIVE · WS';l.className='font-mono text-[10px] tracking-[.18em] text-call';f.textContent='LIVE·WS';f.className='text-call'}
-  else if(S.mode==='live'){d.className='dot live';l.textContent='LIVE · REST';l.className='font-mono text-[10px] tracking-[.18em] text-call';f.textContent='LIVE·REST';f.className='text-call'}
-  else if(S.mode==='sim'){d.className='dot sim';l.textContent='SIM FEED';l.className='font-mono text-[10px] tracking-[.18em] text-otc';f.textContent='SIMULATED';f.className='text-otc'}
-  else{d.className='dot warn';l.textContent='RECONNECTING';l.className='font-mono text-[10px] tracking-[.18em] text-otc';f.textContent='RECONNECTING';f.className='text-otc'}
+  if(S.wsLive){d.className='dot live';l.textContent='LIVE · WS';l.className='text-call';f.textContent='LIVE·WS';f.className='text-call'}
+  else if(S.mode==='live'){d.className='dot live';l.textContent='LIVE · REST';l.className='text-call';f.textContent='LIVE·REST';f.className='text-call'}
+  else if(S.mode==='sim'){d.className='dot sim';l.textContent='SIM FEED';l.className='text-otc';f.textContent='SIMULATED';f.className='text-otc'}
+  else{d.className='dot warn';l.textContent='CONNECTING';l.className='text-otc';f.textContent='BOOT';f.className='text-otc'}
 }
 
-/* main loop — chained setTimeout = zero overlap, zero pile-up */
 async function loop(){
   if(!document.hidden){
-    stepPrices(); updateTicker(); chartTick(); maintenance();
+    stepPrices(); updateTicker(); chartTick(); updateCandleTracker(); renderUniverse(); maintenance();
     if(!S.wsLive){
-      try{ const {data,ms}=await fetchStatus(); ingest(data,ms); $('#latVal').textContent=ms; }
+      try{ const {data,ms}=await fetchStatus(); ingest(data,ms); }
       catch(e){ onFeedError(); }
-    } else $('#latVal').textContent='0';
+    }
     renderPass(); updateStats();
   }
   setTimeout(loop,POLL_MS);
 }
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden) loop(); });
 
-/* ── CARD RENDERER (keyed patch — no rebuilds, no flicker) ─────── */
+/* ── CARD RENDERER ───────────────────────────────────────────── */
 const TPL=$('#tplCard');
 function mountCard(sig,animate){
   if(S.elMap.has(sig.id)) return;
@@ -759,8 +1178,9 @@ function mountCard(sig,animate){
   const R={pair:node.querySelector('.c-pair'),badge:node.querySelector('.c-badge'),hash:node.querySelector('.c-hash'),
     cd:node.querySelector('.c-cd'),dir:node.querySelector('.c-dir'),arc:node.querySelector('.c-arc'),
     confn:node.querySelector('.c-confn'),entry:node.querySelector('.c-entry'),rsi:node.querySelector('.c-rsi'),
-    rbar:node.querySelector('.c-rbar'),candle:node.querySelector('.c-candle'),born:node.querySelector('.c-born'),
-    prog:node.querySelector('.c-prog'),share:node.querySelector('.c-share'),sharetxt:node.querySelector('.c-sharetxt'),
+    rbar:node.querySelector('.c-rbar'),born:node.querySelector('.c-born'),broker:node.querySelector('.c-broker'),
+    zscore:node.querySelector('.c-zscore'),prog:node.querySelector('.c-prog'),share:node.querySelector('.c-share'),
+    sharetxt:node.querySelector('.c-sharetxt'),watch:node.querySelector('.c-watch'),
     copy:node.querySelector('.c-copy'),lastEntry:null};
   node.classList.add(sig.direction==='CALL'?'call':'put');
   R.pair.textContent=sig.pair;
@@ -769,13 +1189,13 @@ function mountCard(sig,animate){
   R.dir.textContent=(sig.direction==='CALL'?'▲ CALL':'▼ PUT');
   R.dir.className='dchip c-dir '+sig.direction.toLowerCase();
   R.arc.style.stroke=sig.direction==='CALL'?'#0fe39b':'#ff3b5c';
-  R.candle.textContent=fmtDur(sig.candleTime);
-  R.born.textContent=hms(sig.createdAt)+' UTC';
+  R.broker.textContent=S.broker==='quotex'?'Quotex':'Pocket Option';
   R.prog.style.background=sig.direction==='CALL'?'#0fe39b':'#ff3b5c';
   if(!animate||REDUCED) node.classList.remove('enter');
   R.share.addEventListener('click',e=>{e.stopPropagation();shareSignal(sig,R)});
   R.copy.addEventListener('click',e=>{e.stopPropagation();copySignal(sig)});
-  node.addEventListener('click',()=>selectPair(sig.pair,sig.id));
+  R.watch.addEventListener('click',e=>{e.stopPropagation();selectPair(sig.pair,sig.id);switchView('trading');toast('info','CHART SYNCED',sig.pair)});
+  node.addEventListener('click',()=>{selectPair(sig.pair,sig.id);switchView('trading')});
   S.elMap.set(sig.id,node); $('#cardGrid').appendChild(node);
 }
 function visibleSignals(){
@@ -789,7 +1209,6 @@ function visibleSignals(){
 }
 function renderPass(){
   const grid=$('#cardGrid'), vis=visibleSignals(), ids=new Set(vis.map(s=>s.id));
-  // remove cards that fell out entirely
   S.elMap.forEach((el,id)=>{ if(!ids.has(id)&&!grid.contains(el)){el.remove();S.elMap.delete(id)} });
   vis.forEach((s,i)=>{
     const el=S.elMap.get(s.id); if(!el)return;
@@ -797,7 +1216,6 @@ function renderPass(){
     el.classList.toggle('sel',S.selSym===s.id);
     patchCard(s,el);
   });
-  // counts
   const act=[...S.signals.values()].filter(s=>s.phase==='active');
   const cnt=m=>act.filter(s=>m==='ALL'||s.market===m).length;
   $$('[data-c]').forEach(e=>e.textContent=cnt(e.dataset.c));
@@ -810,31 +1228,30 @@ function renderPass(){
 function patchCard(s,el){
   const R=el._r||(el._r={entry:null,lastEntry:null});
   const q=k=>el.querySelector(k);
-  // confidence ring + number
   const arc=q('.c-arc'),cn=q('.c-confn');
   if(cn.textContent!==s.confidence+'%'){
     cn.textContent=s.confidence+'%';
     arc.style.strokeDashoffset=131.9*(1-clamp(s.confidence,0,100)/100);
   }
-  // entry with directional flash
   const en=q('.c-entry'),etxt=fmtPrice(s.entry,s.dp);
   if(R.entry!==etxt){
     if(R.entry&&!REDUCED){en.classList.remove('fu','fd');void en.offsetWidth;
       en.classList.add(s.entry>R.lastEntry?'fu':'fd')}
     R.lastEntry=s.entry;R.entry=etxt;en.textContent=etxt;
   }
-  // rsi
   const rs=q('.c-rsi'),rb=q('.c-rbar');
-  if(rs.textContent!==s.rsi.toFixed(1)){rs.textContent=s.rsi.toFixed(1);rs.className='c-rsi font-semibold mt-0.5 '+rsiColor(s.rsi);
+  if(rs.textContent!==s.rsi.toFixed(1)){rs.textContent=s.rsi.toFixed(1);rs.className='c-rsi font-semibold mt-0.5 num '+rsiColor(s.rsi);
     rb.style.width=clamp(s.rsi,0,100)+'%';rb.style.background=rsiBar(s.rsi)}
-  // countdown + progress
+  const z=q('.c-zscore'),zv=+(s.zscore||0).toFixed(2);
+  const zhi=Math.abs(zv)>=1.5;
+  z.textContent='Z:'+(zv>=0?'+':'')+zv.toFixed(2);
+  z.className='zscore c-zscore '+(zhi?'hi':'lo');
   const now=Date.now(),cd=q('.c-cd'),pg=q('.c-prog');
   if(s.phase==='active'){
     cd.textContent='T-'+p2(Math.max(0,Math.floor((s.expireAt-now)/1000)));
     pg.style.width=clamp((s.expireAt-now)/(s.candleTime*1000)*100,0,100)+'%';
     if(now>=s.expireAt){ s.source==='sim'?resolveSim(s):(s.result=s.result||null,closeSignal(s)); }
   } else cd.textContent='CLOSED';
-  // result stamp
   if(s.phase==='closed'&&!el._stamped){
     el._stamped=true;el.classList.add('closed');
     if(s.result){const st=document.createElement('div');st.className='stamp '+s.result.toLowerCase();
@@ -854,16 +1271,70 @@ function maintenance(){
   });
 }
 
-/* ── SHARE TO TELEGRAM ──────────────────────────────────────────── */
+/* ── UNIVERSE TABLE ──────────────────────────────────────────── */
+function renderUniverse(){
+  const tb=$('#tblBody'); if(!tb) return;
+  const rows=ALL_PAIRS.filter(c=>S.tab==='ALL'||(PAIRS.OTC.includes(c)?'OTC':'CRYPTO')===S.tab)
+    .filter(c=>!S.q||c.sym.toLowerCase().includes(S.q))
+    .map(c=>{
+      const m=S.mkt[c.sym];
+      const activeSig=[...S.signals.values()].find(s=>s.pair===c.sym&&s.phase==='active');
+      const sig=activeSig?.direction||'—';
+      const conf=activeSig?.confidence||0;
+      const pct=(m.p/m.start-1)*100, up=pct>=0;
+      return `<tr class="border-b border-line/50 hover:bg-panel/60 cursor-pointer" data-sel="${c.sym}">
+        <td class="px-3 py-2.5 font-semibold text-paper">${c.sym}<span class="text-muted ml-1 text-[10px]">${PAIRS.OTC.includes(c)?'OTC':'BINANCE'}</span></td>
+        <td class="px-3 py-2.5 text-right num ${up?'text-call':'text-put'}">${fmtPrice(m.p,c.dp)}</td>
+        <td class="px-3 py-2.5 text-right num ${rsiColor(m.rsi)}">${m.rsi.toFixed(1)}</td>
+        <td class="px-3 py-2.5 text-right"><span class="zscore ${Math.abs(m.z)>1.5?'hi':'lo'}">${m.z>=0?'+':''}${m.z.toFixed(2)}</span></td>
+        <td class="px-3 py-2.5 font-semibold tracking-wider ${sig==='CALL'?'text-call':sig==='PUT'?'text-put':'text-muted'}">${sig==='CALL'?'▲ CALL':sig==='PUT'?'▼ PUT':'—'}</td>
+        <td class="px-3 py-2.5 text-right num text-gem">${conf?conf+'%':'—'}</td>
+        <td class="px-3 py-2.5 text-right num text-muted">1m</td>
+        <td class="px-3 py-2.5 text-right"><button class="rounded border border-ion/40 bg-ion/5 px-2 py-1 text-[10px] text-ion tracking-widest hover:bg-ion/15" data-watch="${c.sym}">WATCH</button></td>
+      </tr>`;
+    }).join('');
+  tb.innerHTML=rows;
+  tb.querySelectorAll('[data-sel]').forEach(r=>r.onclick=()=>selectPair(r.dataset.sel));
+  tb.querySelectorAll('[data-watch]').forEach(b=>b.onclick=e=>{e.stopPropagation();selectPair(b.dataset.watch);toast('info','WATCHING',b.dataset.watch)});
+}
+
+/* ── CANDLE TRACKER HEADER ─────────────────────────────────── */
+function updateCandleTracker(){
+  const sym=S.chartSym||'BTC/USDT';
+  const m=S.mkt[sym]; if(!m) return;
+  const cfg=CFG[sym];
+  $('#candleSym').textContent=sym;
+  const now=Date.now();
+  const candleStart=Math.floor(now/60000)*60000;
+  const remaining=candleStart+60000-now;
+  const progress=(60000-remaining)/60000*100;
+  $('#cdO').textContent=fmtPrice(m.start,cfg.dp);
+  $('#cdP').textContent=fmtPrice(m.p,cfg.dp);
+  $('#cdI').textContent=m.rsi.toFixed(1);
+  $('#cdI').className='num '+rsiColor(m.rsi);
+  $('#cdR').textContent=Math.max(0,Math.floor(remaining/1000))+'s';
+  $('#cdProg').style.width=progress+'%';
+  const bull=m.p>=m.start;
+  $('#cdD').textContent=bull?'▲ BULL':'▼ BEAR';
+  $('#cdD').className='num '+(bull?'text-call':'text-put');
+  // next signal hint
+  const activeSig=[...S.signals.values()].find(s=>s.pair===sym&&s.phase==='active');
+  $('#nextSig').textContent=activeSig?activeSig.direction:(m.rsi<37?'CALL':m.rsi>63?'PUT':'—');
+  $('#nextSig').className='font-bold '+(activeSig?.direction==='PUT'?'text-put':'text-call');
+  $('#nextEntry').textContent=fmtPrice(m.p,cfg.dp);
+  $('#nextConf').textContent=(activeSig?activeSig.confidence:60+Math.round(Math.random()*20))+'%';
+}
+
+/* ── SHARE TO TELEGRAM ──────────────────────────────────────── */
 function sigText(s){
-  return `⚡ APEX QUANT SIGNAL\n${s.pair} · ${s.market} · ${fmtDur(s.candleTime)}\n${s.direction==='CALL'?'▲':'▼'} ${s.direction} @ ${fmtPrice(s.entry,s.dp)}\nConfidence ${s.confidence}% · RSI ${s.rsi.toFixed(1)}\n${hms(s.createdAt)} UTC`;
+  return `⚡ APEX QUANT SIGNAL\n${s.pair} · ${s.market} · ${fmtDur(s.candleTime)}\n${s.direction==='CALL'?'▲':'▼'} ${s.direction} @ ${fmtPrice(s.entry,s.dp)}\nConfidence ${s.confidence}% · RSI ${s.rsi.toFixed(1)} · Z ${(+s.zscore||0).toFixed(2)}\n${hms(s.createdAt)} UTC`;
 }
 async function shareSignal(sig,R){
   const btn=R.share,txt=R.sharetxt;
   btn.disabled=true; txt.textContent='PUBLISHING…';
   const payload={signalId:sig.id,pair:sig.pair,market:sig.market,direction:sig.direction,
-    confidence:sig.confidence,rsi:+sig.rsi.toFixed(1),entryPrice:sig.entry,
-    candleTime:sig.candleTime,timestamp:sig.createdAt,source:'dashboard'};
+    confidence:sig.confidence,rsi:+sig.rsi.toFixed(1),zscore:+(sig.zscore||0).toFixed(2),entryPrice:sig.entry,
+    candleTime:sig.candleTime,timestamp:sig.createdAt,broker:S.broker,source:'dashboard'};
   try{
     if(S.mode==='sim'){ await new Promise(r=>setTimeout(r,650)); }
     else{
@@ -872,10 +1343,11 @@ async function shareSignal(sig,R){
     }
     btn.classList.add('sent'); txt.textContent='SENT ✓';
     toast('success','PUBLISHED TO TELEGRAM',`${sig.pair} ${sig.direction} · ${sig.confidence}% conf`);
-    S.shareLast=Date.now(); $('#h3').textContent='OK'; $('#h3').className=chipCls('ok'); $('#h3lat').textContent=hms(Date.now());
+    pushTgHistory(sig);
+    $('#h3').textContent='LIVE'; $('#h3').className='schip live'; $('#h3lat').textContent=hms(Date.now());
   }catch(e){
     toast('error','TELEGRAM PUSH FAILED','POST /api/share-telegram → '+(e.message||'network error'));
-    S.shareLast=Date.now(); $('#h3').textContent='FAIL'; $('#h3').className=chipCls('bad'); $('#h3lat').textContent=e.message;
+    $('#h3').textContent='FAIL'; $('#h3').className='schip off'; $('#h3lat').textContent=e.message;
   }finally{
     setTimeout(()=>{btn.disabled=false;btn.classList.remove('sent');txt.textContent='SHARE TO TELEGRAM'},2200);
   }
@@ -884,8 +1356,21 @@ async function copySignal(s){
   try{await navigator.clipboard.writeText(sigText(s));toast('info','SIGNAL COPIED',s.pair+' → clipboard')}
   catch(e){toast('error','COPY BLOCKED','Clipboard permission denied')}
 }
+function pushTgHistory(s){
+  const list=$('#tgHistory');
+  if(list.firstElementChild && list.firstElementChild.textContent.startsWith('—')) list.innerHTML='';
+  const el=document.createElement('div');
+  el.className='hist-item flex items-center gap-2 py-1.5 border-b border-line/50';
+  el.innerHTML=`<span class="text-muted/70 num">${hms(Date.now())}</span>
+    <span class="text-call font-bold">✓</span>
+    <span class="text-[#c9d7e8] font-semibold">${s.pair}</span>
+    <span class="${s.direction==='CALL'?'text-call':'text-put'}">${s.direction}</span>
+    <span class="flex-1"></span><span class="text-gem num">${s.confidence}%</span>`;
+  list.prepend(el);
+  while(list.children.length>20) list.lastChild.remove();
+}
 
-/* ── CHART (Lightweight Charts v4) ─────────────────────────────── */
+/* ── CHART (Lightweight Charts v4) ───────────────────────────── */
 const HAS_LWC=typeof LightweightCharts!=='undefined';
 let chart=null,cSeries=null,vSeries=null,chartCfg=null,cur=null,curVol=null,
     candleStart=0,DUR=30,prevClose=null,histCache={};
@@ -914,12 +1399,12 @@ function genHistory(cfg){
     for(let s=0;s<6;s++){c=c*(1+(Math.random()-.5)*cfg.vol*2.4);h=Math.max(h,c);l=Math.min(l,c)}
     arr.push({time:t,open:o,high:h,low:l,close:c,vol:300+Math.random()*1500});p=c;
   }
-  S.mkt[cfg.sym].p=arr[arr.length-1].close;   // sync live price with chart seed
+  S.mkt[cfg.sym].p=arr[arr.length-1].close;
   return arr;
 }
 function selectPair(sym,focusId){
   if(!CFG[sym])return;
-  chartCfg=CFG[sym];S.selSym=focusId||null;
+  chartCfg=CFG[sym];S.selSym=focusId||null;S.chartSym=sym;
   $('#pairSelect').value=sym;
   $('#chPair').textContent=chartCfg.sym;
   const isOTC=PAIRS.OTC.includes(chartCfg),b=$('#chMarket');
@@ -967,13 +1452,17 @@ function chartHeader(){
   }
   const pct=prevClose?(p/prevClose-1)*100:0,ch=$('#chChange');
   ch.textContent=(pct>=0?'+':'')+pct.toFixed(3)+'%';
-  ch.className='font-mono text-[11px] '+(pct>=0?'text-call':'text-put');
+  ch.className='font-mono text-[11px] num '+(pct>=0?'text-call':'text-put');
 }
 
-/* ── SETTINGS (slider · sound · persistence · API sync) ────────── */
+/* ── SETTINGS ──────────────────────────────────────────────── */
 const thr=$('#thr'),snd=$('#snd');
-function paintSlider(){thr.style.setProperty('--fill',((thr.value-50)/45*100)+'%');$('#thrVal').textContent=thr.value}
-thr.addEventListener('input',()=>{S.settings.threshold=+thr.value;paintSlider();saveSettings();renderPass()});
+function paintSlider(el,min,max,valEl){
+  const v=+el.value;
+  el.style.setProperty('--fill',((v-min)/(max-min)*100)+'%');
+  $(valEl).textContent=el.step && el.step<1 ? v.toFixed(2) : v;
+}
+thr.addEventListener('input',()=>{S.settings.threshold=+thr.value;paintSlider(thr,50,95,'#thrVal');saveSettings();renderPass()});
 snd.addEventListener('change',()=>{S.settings.sound=snd.checked;if(snd.checked)chime('CALL');saveSettings()});
 $('#beepTest').addEventListener('click',()=>chime('CALL'));
 let saveT=null;
@@ -985,7 +1474,7 @@ function saveSettings(){
     if(S.mode==='live'||S.wsLive){
       try{await fetch(API.settings,{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({confidenceThreshold:S.settings.threshold,soundAlerts:S.settings.sound})});
-        $('#syncNote').textContent='SYNCED ✓';$('#h2').textContent='LIVE';$('#h2').className=chipCls('ok');return}catch(e){}
+        $('#syncNote').textContent='SYNCED ✓';$('#h2').textContent='LIVE';$('#h2').className='schip live';return}catch(e){}
     }
     $('#syncNote').textContent='LOCAL';
   },700);
@@ -994,40 +1483,207 @@ async function loadSettings(){
   try{const l=JSON.parse(localStorage.getItem('aq-settings')||'{}');
     if(Number.isFinite(+l.threshold))S.settings.threshold=clamp(+l.threshold,50,95);
     if(typeof l.sound==='boolean')S.settings.sound=l.sound}catch(e){}
-  try{ // adopt engine-side settings when reachable
-    const res=await fetch(API.settings,{cache:'no-store'});
-    if(res.ok){const d=await res.json();const s=d.settings||d;
-      if(Number.isFinite(+s.confidenceThreshold))S.settings.threshold=clamp(+s.confidenceThreshold,50,95);
-      if(typeof s.soundAlerts==='boolean')S.settings.sound=s.soundAlerts;
-      $('#h2').textContent='LIVE';$('#h2').className=chipCls('ok');$('#h2lat').textContent='GET ok'}
-  }catch(e){}
-  thr.value=S.settings.threshold;snd.checked=S.settings.sound;paintSlider();
+  thr.value=S.settings.threshold;snd.checked=S.settings.sound;
+  paintSlider(thr,50,95,'#thrVal');
 }
 
-/* ── STATS PANEL ────────────────────────────────────────────────── */
+/* ── STATS PANEL ────────────────────────────────────────────── */
 function updateStats(){
   const st=S.stats,total=st.wins+st.losses;
   const wr=st.winRateOverride??(total?st.wins/total*100:0);
   $('#stWinrate').textContent=wr.toFixed(1)+'%';
   $('#stSignals').textContent=st.total;
-  $('#stStreak').textContent=st.streak===0?'—':(st.streak>0?'W×'+st.streak:'L×'+(-st.streak));
-  $('#stStreak').className='font-semibold '+(st.streak>0?'text-call':st.streak<0?'text-put':'text-paper');
-  $('#sWins').textContent=st.wins;$('#sLoss').textContent=st.losses;
-  const act=[...S.signals.values()].filter(s=>s.phase==='active');
-  const avg=act.length?act.reduce((a,s)=>a+s.confidence,0)/act.length:0;
-  $('#sConf').textContent=avg?avg.toFixed(0)+'%':'--';
-  $('#wrRing').style.strokeDashoffset=213.6*(1-clamp(wr,0,100)/100);
+}
+function updateHistoryView(){
+  $('#hTotal').textContent=S.stats.total;
+  $('#hWins').textContent=S.stats.wins;
+  $('#hLoss').textContent=S.stats.losses;
+  const t=S.stats.wins+S.stats.losses;
+  $('#hWr').textContent=(t? (S.stats.wins/t*100).toFixed(1)+'%' : '—%');
 }
 
-/* ── TABS & SEARCH ─────────────────────────────────────────────── */
-$$('#tabs .tab').forEach(b=>b.addEventListener('click',()=>{
-  $$('#tabs .tab').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+/* ── TABS & SEARCH ──────────────────────────────────────────── */
+$$('[data-tab]').forEach(b=>b.addEventListener('click',()=>{
+  $$('[data-tab]').forEach(x=>x.classList.remove('on'));b.classList.add('on');
   S.tab=b.dataset.tab;renderPass();
 }));
 $('#search').addEventListener('input',e=>{S.q=e.target.value.trim().toLowerCase();renderPass()});
 
-/* ── BOOT ───────────────────────────────────────────────────────── */
+/* ── GEMINI MODAL ─────────────────────────────────────────── */
+$('#gemBtn').onclick=()=>{$('#gemModal').classList.remove('hidden');$('#gemModal').classList.add('grid')};
+$('#gemClose').onclick=()=>{$('#gemModal').classList.add('hidden');$('#gemModal').classList.remove('grid')};
+$('#gemSave').onclick=async()=>{
+  const k=$('#gemKey').value.trim();if(!k)return toast('warn','EMPTY KEY','Enter a Gemini API key');
+  const st=$('#gemStatus');st.textContent='Saving...';st.className='mt-3 font-mono text-[10px] text-otc';
+  try{
+    const t0=performance.now();
+    const r=await fetch(API.gemKey,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:k})});
+    const ms=Math.round(performance.now()-t0);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    S.gemKeySet=true;
+    st.textContent='✓ Key set in engine memory ('+ms+'ms)';st.className='mt-3 font-mono text-[10px] text-call';
+    $('#h6').textContent='LIVE';$('#h6').className='schip live';$('#h6lat').textContent=ms+'ms';
+    $('#gemKey').value='';toast('success','GEMINI KEY SET','Memory only, never persisted');
+  }catch(e){
+    st.textContent='✕ '+e.message;st.className='mt-3 font-mono text-[10px] text-put';
+    $('#h6').textContent='FAIL';$('#h6').className='schip off';
+  }
+};
+$('#gemClear').onclick=async()=>{
+  try{
+    const t0=performance.now();
+    await fetch(API.gemClear,{method:'POST'});
+    const ms=Math.round(performance.now()-t0);
+    S.gemKeySet=false;
+    $('#gemStatus').textContent='✓ Key cleared';$('#gemStatus').className='mt-3 font-mono text-[10px] text-call';
+    $('#h6').textContent='LIVE';$('#h6').className='schip live';$('#h6lat').textContent=ms+'ms';
+    toast('info','GEMINI KEY CLEARED','');
+  }catch(e){toast('error','CLEAR FAILED',e.message)}
+};
+
+/* ── AI SCAN (DATA) ─────────────────────────────────────────── */
+function writeTerm(elId,lines){
+  const el=$(elId);
+  el.innerHTML=lines.map(l=>`<div class="term-line"><span class="p">&gt;</span>${l}</div>`).join('');
+  el.scrollTop=el.scrollHeight;
+}
+$('#aiScan').onclick=async()=>{
+  const sym=$('#aiSym').value.trim().toUpperCase()||S.chartSym||'BTC/USDT';
+  const tf=$('#aiTf').value;
+  $('#aiError').classList.add('hidden');
+  writeTerm('#aiResult',[`<span class="m">scanning ${sym} @ ${tf}m…</span>`,`<span class="m">fetching last 50 candles</span>`,`<span class="m">calling gemini…</span>`]);
+  const t0=performance.now();
+  try{
+    const r=await fetch(API.aiScan,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({symbol:sym,tf:+tf})});
+    const ms=Math.round(performance.now()-t0);
+    const j=await r.json();
+    $('#h5').textContent='LIVE';$('#h5').className='schip live';$('#h5lat').textContent=ms+'ms';
+    if(j.ok){
+      writeTerm('#aiResult',[
+        `<span class="ok">✓ scan complete (${ms}ms)</span>`,
+        `<span class="m">symbol: ${sym}</span>`,
+        `<span class="m">timeframe: ${tf}m</span>`,
+        `<span>&nbsp;</span>`,
+        `<span class="ok">── ANALYSIS ──</span>`,
+        `<span>${(j.analysis||JSON.stringify(j,null,2)).toString().replace(/</g,'&lt;').split('\n').map(l=>l.replace(/^\s+/,'')).join('</span><span>') || 'no analysis returned'}</span>`
+      ]);
+    }else{
+      writeTerm('#aiResult',[`<span class="err">✕ engine error</span>`,`<span class="err">${j.error||'unknown'}</span>`]);
+    }
+  }catch(e){
+    $('#h5').textContent='FAIL';$('#h5').className='schip off';
+    writeTerm('#aiResult',[`<span class="err">✕ network error: ${e.message}</span>`]);
+    $('#aiError').classList.remove('hidden');
+    $('#aiError').textContent='⚠ AI ISOLATED ERROR (signals unaffected): '+e.message;
+  }
+};
+
+/* ── VISION UPLOAD ──────────────────────────────────────────── */
+const drop=$('#drop'),fi=$('#fileInput');
+drop.onclick=()=>fi.click();fi.onchange=()=>upload(fi.files[0]);
+drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('drag')});
+drop.addEventListener('dragleave',()=>drop.classList.remove('drag'));
+drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('drag');const f=e.dataTransfer.files[0];if(f)upload(f)});
+function upload(f){
+  if(!f)return;
+  const rd=new FileReader();
+  rd.onload=async()=>{
+    writeTerm('#visionResult',[`<span class="m">uploading ${f.name} (${(f.size/1024).toFixed(1)}kb)…</span>`,`<span class="m">gemini vision analyzing…</span>`]);
+    const t0=performance.now();
+    try{
+      const r=await fetch(API.analyze,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image:rd.result,tf:+$('#aiTf').value})});
+      const ms=Math.round(performance.now()-t0);
+      const j=await r.json();
+      if(j.ok){
+        writeTerm('#visionResult',[
+          `<span class="ok">✓ vision complete (${ms}ms)</span>`,
+          `<span class="m">file: ${f.name}</span>`,
+          `<span>&nbsp;</span>`,
+          `<span class="ok">── STRUCTURE ──</span>`,
+          `<span>${(j.analysis||JSON.stringify(j,null,2)).toString().replace(/</g,'&lt;').split('\n').map(l=>l.replace(/^\s+/,'')).join('</span><span>')}</span>`
+        ]);
+      }else writeTerm('#visionResult',[`<span class="err">✕ ${j.error||'vision failed'}</span>`]);
+    }catch(e){writeTerm('#visionResult',[`<span class="err">✕ ${e.message}</span>`])}
+  };
+  rd.readAsDataURL(f);
+}
+
+/* ── STRATEGY RULES ─────────────────────────────────────────── */
+function paintStrategy(){
+  paintSlider($('#stRsiL'),10,45,'#vRsiL');
+  paintSlider($('#stRsiH'),55,90,'#vRsiH');
+  paintSlider($('#stZ'),1.0,4.0,'#vZ');
+  paintSlider($('#stAdx'),15,50,'#vAdx');
+  paintSlider($('#stSr'),0.05,0.5,'#vSr');
+  paintSlider($('#stMc'),5,50,'#vMc');
+}
+['stRsiL','stRsiH','stZ','stAdx','stSr','stMc'].forEach(id=>{
+  $('#'+id).addEventListener('input',()=>{
+    paintStrategy();
+    S.strategy={
+      rsiLow:+$('#stRsiL').value,rsiHigh:+$('#stRsiH').value,
+      zscoreMin:+$('#stZ').value,adxMin:+$('#stAdx').value,
+      srBreakout:+$('#stSr').value,minCandles:+$('#stMc').value,
+    };
+  });
+});
+$('#stReset').onclick=()=>{
+  $('#stRsiL').value=30;$('#stRsiH').value=70;$('#stZ').value=2.0;
+  $('#stAdx').value=25;$('#stSr').value=0.15;$('#stMc').value=14;
+  paintStrategy();toast('info','RESET','Defaults restored (not applied yet)');
+};
+$('#stSave').onclick=async()=>{
+  const btn=$('#stSave'),orig=btn.innerHTML;
+  btn.disabled=true;btn.textContent='APPLYING…';
+  const t0=performance.now();
+  try{
+    if(S.mode==='sim'){await new Promise(r=>setTimeout(r,700))}
+    else{
+      const r=await fetch(API.strategy,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(S.strategy)});
+      if(!r.ok) throw new Error('HTTP '+r.status);
+    }
+    const ms=Math.round(performance.now()-t0);
+    $('#stLastSync').textContent=hms(Date.now())+' UTC';
+    $('#stEngineMode').textContent=S.mode==='sim'?'SIM (local cache)':'LIVE';
+    $('#h4').textContent='LIVE';$('#h4').className='schip live';$('#h4lat').textContent=ms+'ms';
+    toast('success','STRATEGY APPLIED',Object.entries(S.strategy).map(([k,v])=>`${k}=${v}`).join(' · '));
+  }catch(e){
+    $('#h4').textContent='FAIL';$('#h4').className='schip off';
+    toast('error','APPLY FAILED',e.message);
+  }finally{btn.disabled=false;btn.innerHTML=orig}
+};
+
+/* ── TELEGRAM MANAGER ───────────────────────────────────────── */
+$('#tgToggle').addEventListener('change',e=>{
+  toast('info',e.target.checked?'ALERTS ENABLED':'ALERTS DISABLED','Dashboard continues to operate');
+});
+$('#tgTest').onclick=async()=>{
+  const btn=$('#tgTest'),orig=btn.innerHTML;btn.disabled=true;btn.textContent='SENDING…';
+  const t0=performance.now();
+  try{
+    const r=await fetch(API.tgTest,{method:'POST'});
+    const ms=Math.round(performance.now()-t0);
+    const j=await r.json().catch(()=>({ok:r.ok}));
+    if(j.ok||r.ok){
+      $('#tgMsg').textContent='✓ Test alert sent ('+ms+'ms)';$('#tgMsg').className='font-mono text-[10px] text-call';
+      toast('success','TEST ALERT SENT','Channel notified');
+    }else throw new Error(j.error||'failed');
+  }catch(e){
+    $('#tgMsg').textContent='✕ '+e.message;$('#tgMsg').className='font-mono text-[10px] text-put';
+    toast('error','TEST FAILED',e.message);
+  }finally{btn.disabled=false;btn.innerHTML=orig}
+};
+$('#tgBroadcast').onclick=async()=>{
+  const last=[...S.signals.values()].sort((a,b)=>b.createdAt-a.createdAt)[0];
+  if(!last)return toast('warn','NO SIGNAL','No signal to broadcast');
+  await fetch(API.share,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({signalId:last.id,pair:last.pair,direction:last.direction,confidence:last.confidence,entryPrice:last.entry,source:'manager'})});
+  pushTgHistory(last);toast('success','BROADCAST SENT',last.pair+' '+last.direction);
+};
+
+/* ── BOOT ───────────────────────────────────────────────────── */
 (function boot(){
+  $('#sysHost').textContent=location.host||'local';
   const sel=$('#pairSelect');
   ['CRYPTO','OTC'].forEach(m=>{
     const g=document.createElement('optgroup');g.label=m==='CRYPTO'?'CRYPTO · BINANCE':'OTC PAIRS';
@@ -1038,15 +1694,13 @@ $('#search').addEventListener('input',e=>{S.q=e.target.value.trim().toLowerCase(
   if(!REDUCED) $$('.decode').forEach((el,i)=>setTimeout(()=>decode(el),150+i*120));
   initChart();
   loadSettings();
+  paintStrategy();
   selectPair('BTC/USDT');
   tryWS();
   updateTicker();
+  renderUniverse();
   loop();
-  setTimeout(()=>{ if(S.mode==='connecting'){startSim();toast('info','SIMULATED FEED ACTIVE','No engine detected at '+ (API_BASE||location.origin||'local') + ' — set API_BASE to link your Render backend.')}},FAIL_TO_SIM*POLL_MS+500);
-  setInterval(async()=>{ // periodic settings-endpoint health probe
-    try{const t0=performance.now();const r=await fetch(API.settings,{method:'GET',cache:'no-store'});
-      if(r.ok){$('#h2').textContent='LIVE';$('#h2').className=chipCls('ok');$('#h2lat').textContent=Math.round(performance.now()-t0)+'ms'}}catch(e){}
-  },15000);
+  setTimeout(()=>{ if(S.mode==='connecting'){startSim();toast('info','SIMULATED FEED ACTIVE','Set API_BASE in source to link your Render backend.')}},FAIL_TO_SIM*POLL_MS+500);
 })();
 </script>
 </body>
