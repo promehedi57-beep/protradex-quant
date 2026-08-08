@@ -17,12 +17,25 @@ const { Engine } = require('./engine');
 
 async function main() {
   console.log(`[qx] starting · node ${process.version} · ${cfg.PORT}`);
+  
   const signalBus = new SignalBus();
   const metrics = new Metrics();
-  const agg = new Aggregator({ onBar: (b) => engine.on1mBar(b) });
-  const tf = new TFEngine({ onCandle: (s, t, c) => engine.onTFCandle(s, t, c), tfs: cfg.TIMEFRAMES, keep: cfg.TF_KEEP_CANDLES });
+  
+  // ১. রেফারেন্স সমস্যা মেটাতে আগেই engine ভেরিয়েবল ডিক্লেয়ার করা হয়েছে
+  let engine;
+
+  // ২. Aggregator & TFEngine তৈরি
+  const agg = new Aggregator({ onBar: (b) => engine && engine.on1mBar(b) });
+  const tf = new TFEngine({ 
+    onCandle: (s, t, c) => engine && engine.onTFCandle(s, t, c), 
+    tfs: cfg.TIMEFRAMES, 
+    keep: cfg.TF_KEEP_CANDLES 
+  });
+  
   const hub = new IndicatorHub();
-  const engine = new Engine({ signalBus, agg, tf, hub });
+  
+  // ৩. এবার Engine ইনস্ট্যান্স নিরাপদে তৈরি হবে
+  engine = new Engine({ signalBus, agg, tf, hub });
 
   const executor = new Executor({ enabled: rt.getExecution() });
   rt.onExecutionChange(v => executor.setEnabled(v));
@@ -72,4 +85,5 @@ async function main() {
   process.on('unhandledRejection', r => console.error('[qx] unhandledRejection', r));
   process.on('uncaughtException', e => console.error('[qx] uncaughtException', e?.stack));
 }
+
 main().catch(e => { console.error('[qx] fatal', e?.stack); process.exit(1); });
