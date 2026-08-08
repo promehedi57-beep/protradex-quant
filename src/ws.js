@@ -1,53 +1,46 @@
 'use strict';
+/* ws.js — optional WebSocket layer. Each WS message mirrors GET /api/status so the
+   frontend's existing ingest() code path works unchanged. */
+let WSS = null;
+try { ({ WebSocketServer: WSS } = require('ws')); } catch (_) { WSS = null; }
 
-/**
- * src/ws.js
- * WebSocket endpoint (/ws) for the APEX//QUANT terminal.
- * Pushes the exact same payload as GET /api/status every 1s,
- * plus an instant snapshot on connect. Zero blocking — if a client
- * is slow or dead, it is dropped without touching the engine.
- */
-
-const { WebSocketServer } = require('ws');
-const { buildStatusPayload } = require('./dashboard');
-
-function attachWs(server, opts) {
-  const wss = new WebSocketServer({ server, path: '/ws' });
+function attachWS(server, deps = {}) {
+  if (!server || typeof server.on !== 'function' || !WSS) return null;
+  const { store, statusPayload } = deps;
+  const wss = new WSS({ server, path: deps.path || '/ws' });
   const clients = new Set();
-
-  const send = (ws, payload) => {
-    if (ws.readyState === 1) {
-      try { ws.send(JSON.stringify(payload)); } catch (e) {}
-    }
-  };
-  const broadcast = () => {
-    if (!clients.size) return;
-    let payload = null;
-    try { payload = buildStatusPayload(opts); } catch (e) {
-      console.error('[ws] payload build error:', e.message);
-      return;
-    }
-    for (const ws of clients) send(ws, payload);
-  };
 
   wss.on('connection', (ws) => {
     clients.add(ws);
-    try { send(ws, buildStatusPayload(opts)); } catch (e) {}
-    ws.on('close', () => clients.delete(ws));
+    ws.isAlive = true;
+    ws.on('pong', () => { ws.isAlive = true; });
     ws.on('error', () => clients.delete(ws));
+    ws.on('close', () => clients.delete(ws));
+    try { ws.send(JSON.stringify({ type: 'ready', at: Date.now() })); } catch (_) {}
+    try { if (statusPayload) ws.send(JSON.stringify({ type: 'snapshot', ...statusPayload() })); } catch (_) {}
   });
 
-  const iv = setInterval(broadcast, 1000);
-  if (iv.unref) iv.unref();
+  if (store) store.on('change', ({ type, signal }) => {
+    broadcast({ type: `signal.${type}`, signal, at: Date.now() });
+    // also push a full snapshot so the UI stays consistent
+    try { if (statusPayload) broadcast({ type: 'snapshot', ...statusPayload() }); } catch (_) {}
+  });
 
-  return {
-    wss,
-    close() {
-      clearInterval(iv);
-      for (const ws of clients) { try { ws.close(); } catch (e) {} }
-      clients.clear();
-    },
-  };
+  function send(ws, obj) { if (ws.readyState === 1) try { ws.send(JSON.stringify(obj)); } catch (_) {} }
+  function broadcast(obj) { for (const ws of clients) send(ws, obj); }
+
+  const beat = setInterval(() => {
+    for (const ws of clients) {
+      if (ws.readyState !== 1) continue;
+      if (!ws.isAlive) { try { ws.terminate(); } catch (_) {} continue; }
+      ws.isAlive = false;
+      try { ws.ping(); } catch (_) {}
+      try { if (statusPayload) send(ws, { type: 'snapshot', ...statusPayload() }); } catch (_) {}
+    }
+  }, deps.heartbeatMs || 3000);
+  if (beat.unref) beat.unref();
+
+  return wss;
 }
 
-module.exports = { attachWs };
+module.exports = { attachWS };
