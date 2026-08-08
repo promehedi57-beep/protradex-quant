@@ -1,128 +1,112 @@
 'use strict';
 
 /**
- * src/tf.js
- * 1m closed bars → higher-timeframe candle folder (5m / 10m / 15m / 20m …).
- * Buckets are epoch-aligned (5m closes at :00/:05/:10…), fully incremental,
- * bounded memory (ring of last N closed candles per symbol×TF).
+ * src/aggregator.js
+ * Raw tick → 1m OHLCV bar aggregator.
+ * O(1) per-tick rollup; emits a bar ONLY when the minute boundary rolls over.
+ * No timers, no silent failures — every malformed tick is counted, every emit is guarded.
  */
 
-const cfg = require('./config');
-const { MS_1M } = require('./aggregator');
+const MS_1M = 60_000;
 
-class TFEngine {
+class Aggregator {
   /**
    * @param {object} opts
-   * @param {(symbol:string, tfMinutes:number, candle:object) => void} opts.onCandle
-   *        Called once per CLOSED higher-TF candle. candle = {openAt,closeAt,o,h,l,c,v}
+   * @param {(bar: {symbol:string,o:number,h:number,l:number,c:number,v:number,
+   *                 openAt:number,closeAt:number,count:number}) => void} opts.onBar
+   *        Called exactly once per CLOSED 1m bar.
    */
-  constructor({ onCandle } = {}) {
-    if (typeof onCandle !== 'function') {
-      throw new Error('TFEngine: onCandle(symbol, tf, candle) callback is required');
+  constructor({ onBar } = {}) {
+    if (typeof onBar !== 'function') {
+      throw new Error('Aggregator: onBar callback is required');
     }
-    this.onCandle = onCandle;
+    this.onBar = onBar;
+    this.bars = new Map(); // symbol -> open 1m bar
+    this.stats = { ticks: 0, bars: 0, malformed: 0, late: 0, symbols: 0 };
 
-    // Sanitize TF list: integers ≥ 1, unique, ascending.
-    this.tfs = [...new Set((cfg.TIMEFRAMES || [5, 10, 15, 20]).map(Number))]
-      .filter(n => Number.isInteger(n) && n >= 1)
-      .sort((a, b) => a - b);
-    if (!this.tfs.length) this.tfs = [15];
-
-    this.keep = Math.max(60, cfg.TF_KEEP_CANDLES || 260);
-    this.symbols = new Map(); // symbol -> Map(tfMs -> { current, closed: [] })
-    this.stats = { candles: 0, late: 0, symbols: 0 };
-  }
-
-  _bucket(ts, tfMs) {
-    return Math.floor(ts / tfMs);
+    // Memory guard: drop symbols that stopped feeding (>3 min stale).
+    this._pruneTimer = setInterval(() => this._prune(), 5 * 60 * 1000);
+    if (this._pruneTimer.unref) this._pruneTimer.unref();
   }
 
   /**
-   * Fold one CLOSED 1m bar into every configured TF.
-   * @param {string} symbol
-   * @param {{o:number,h:number,l:number,c:number,v?:number,openAt:number}} bar
+   * Feed one tick (price update). Idempotent-safe, O(1).
+   * @param {{symbol:string, price:number, ts?:number}} t
    */
-  push(symbol, bar) {
-    if (!symbol || !bar || !Number.isFinite(bar.openAt) ||
-        !Number.isFinite(bar.o) || !Number.isFinite(bar.h) ||
-        !Number.isFinite(bar.l) || !Number.isFinite(bar.c)) {
-      this.stats.late++;
+  push(t) {
+    if (!t || typeof t.symbol !== 'string' || !Number.isFinite(t.price)) {
+      this.stats.malformed++;
+      return;
+    }
+    const ts   = Number.isFinite(t.ts) ? t.ts : Date.now();
+    const minute = Math.floor(ts / MS_1M);
+    const cur  = this.bars.get(t.symbol);
+
+    if (!cur) {
+      // First tick of a fresh symbol.
+      this.bars.set(t.symbol, {
+        symbol: t.symbol, o: t.price, h: t.price, l: t.price, c: t.price,
+        v: 0, count: 1, minute, openAt: ts,
+      });
+      this.stats.symbols = this.bars.size;
+      this.stats.ticks++;
       return;
     }
 
-    let sym = this.symbols.get(symbol);
-    if (!sym) {
-      sym = new Map();
-      this.symbols.set(symbol, sym);
-      this.stats.symbols = this.symbols.size;
+    if (minute === cur.minute) {
+      // Same-minute rollup.
+      if (t.price > cur.h) cur.h = t.price;
+      if (t.price < cur.l) cur.l = t.price;
+      cur.c = t.price;
+      cur.count++;
+    } else if (minute > cur.minute) {
+      // Boundary crossed → close old bar, open new one.
+      this._close(cur);
+      this.bars.set(t.symbol, {
+        symbol: t.symbol, o: t.price, h: t.price, l: t.price, c: t.price,
+        v: 0, count: 1, minute, openAt: ts,
+      });
+    } else {
+      // Out-of-order / late tick from a previous minute — drop, but never silently.
+      this.stats.late++;
+      return;
     }
-
-    for (const tf of this.tfs) {
-      const tfMs = tf * MS_1M;
-      let st = sym.get(tfMs);
-      if (!st) {
-        st = { current: null, closed: [] };
-        sym.set(tfMs, st);
-      }
-
-      const bucket = this._bucket(bar.openAt, tfMs);
-      if (!st.current || bucket !== st.current.bucket) {
-        // Rollover → close previous candle, open new one.
-        if (st.current) this._close(symbol, st, tf, st.current);
-        st.current = {
-          bucket,
-          openAt: bar.openAt,
-          o: bar.o, h: bar.h, l: bar.l, c: bar.c,
-          v: bar.v || 0,
-        };
-      } else {
-        // Same bucket → merge.
-        if (bar.h > st.current.h) st.current.h = bar.h;
-        if (bar.l < st.current.l) st.current.l = bar.l;
-        st.current.c = bar.c;
-        st.current.v += bar.v || 0;
-      }
-    }
+    this.stats.ticks++;
   }
 
-  _close(symbol, st, tf, candle) {
-    const closed = {
-      openAt:  candle.openAt,
-      closeAt: candle.openAt + tf * MS_1M,
-      o: candle.o, h: candle.h, l: candle.l, c: candle.c, v: candle.v,
-    };
-    st.closed.push(closed);
-    if (st.closed.length > this.keep) st.closed.shift();
-    this.stats.candles++;
+  _close(bar) {
     try {
-      this.onCandle(symbol, tf, closed);
+      const closed = {
+        symbol:  bar.symbol,
+        o:       bar.o,
+        h:       bar.h,
+        l:       bar.l,
+        c:       bar.c,
+        v:       bar.count,          // tick-count proxy volume (OTC has no real volume)
+        openAt:  bar.openAt,
+        closeAt: bar.openAt + MS_1M,
+        count:   bar.count,
+      };
+      this.stats.bars++;
+      this.onBar(closed);
     } catch (err) {
-      console.error(`[tf] onCandle error (${symbol} ${tf}m):`, err && err.message);
+      // Never let a downstream error kill the feed loop.
+      console.error('[aggregator] onBar error:', err && err.message);
     }
   }
 
-  /** Last N closed candles for (symbol, tf). Shallow copies — do not mutate. */
-  getCandles(symbol, tfMinutes) {
-    const sym = this.symbols.get(symbol);
-    if (!sym) return [];
-    return (sym.get(tfMinutes * MS_1M) || { closed: [] }).closed.slice();
+  _prune() {
+    const nowMin = Math.floor(Date.now() / MS_1M);
+    for (const [sym, bar] of this.bars) {
+      if (nowMin - bar.minute > 3) this.bars.delete(sym);
+    }
   }
 
-  /** Currently-forming candle (not closed) or null. */
-  current(symbol, tfMinutes) {
-    const sym = this.symbols.get(symbol);
-    if (!sym) return null;
-    return sym.get(tfMinutes * MS_1M)?.current || null;
-  }
-
-  /** Symbols that currently have ≥1 TF with data. */
-  activeSymbols() {
-    return [...this.symbols.keys()];
-  }
-
+  /** Flush & release (shutdown only). */
   stop() {
-    this.symbols.clear();
+    clearInterval(this._pruneTimer);
+    this.bars.clear();
   }
 }
 
-module.exports = { TFEngine };
+module.exports = { Aggregator, MS_1M };
