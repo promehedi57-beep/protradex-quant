@@ -1,6 +1,5 @@
 'use strict';
-/* src/feed.js — unified tick stream: Binance (crypto/Real), TwelveData (FX Real), OTC sim.
-   Emits ONE contract: onTick({symbol, price, ts, market:'real'|'otc', broker}). */
+/* src/feed.js — combined stream binance fix */
 const cfg = require('./config');
 
 /* ── Binance crypto feed (REAL) ── */
@@ -14,15 +13,11 @@ class BinanceFeed {
     this._ws = null; 
     this._timer = null; 
     this._closed = false;
-    this._reconnect = 1000; 
-    this._stops = 0;
+    this._reconnect = 1000;
   }
 
   start() {
-    if (!cfg.BINANCE_ENABLED) { 
-      console.warn('[feed/binance] disabled'); 
-      return this; 
-    }
+    if (!cfg.BINANCE_ENABLED) return this;
     this._connect(); 
     return this;
   }
@@ -30,25 +25,21 @@ class BinanceFeed {
   _connect() {
     if (this._closed) return;
 
-    // Binance Stream Base URL (wss://stream.binance.com:9443/ws)
-    const baseUrl = cfg.BINANCE_WS_URL || 'wss://stream.binance.com:9443/ws';
-    const syms = (cfg.BINANCE_SYMBOLS || ['BTCUSDT', 'ETHUSDT']).map(s => s.toLowerCase() + '@kline_1m');
+    // 💡 ৪-০-৪ এরর ফিক্স: বাইন্যান্স কম্বাইন্ড স্ট্রিম ইউআরএল সরাসরি পাস করা হয়েছে
+    const syms = (cfg.BINANCE_SYMBOLS || ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT'])
+      .map(s => s.toLowerCase() + '@kline_1m')
+      .join('/');
 
-    this._ws = new (require('ws'))(baseUrl, { perMessageDeflate: false });
+    const streamUrl = `wss://stream.binance.com:9443/stream?streams=${syms}`;
+
+    this._ws = new (require('ws'))(streamUrl, { perMessageDeflate: false });
 
     this._ws.on('open', () => { 
       this.connected = true; 
-      this._stops = 0; 
       this._reconnect = 1000; 
       this.statusCb(true); 
       this._heartbeat(); 
-
-      // Send subscribe payload safely
-      try {
-        this._ws.send(JSON.stringify({ method: 'SUBSCRIBE', params: syms, id: 1 }));
-      } catch (e) {
-        console.error('[feed/binance] sub send err:', e.message);
-      }
+      console.log('[feed/binance] connected to combined stream');
     });
 
     this._ws.on('message', (raw) => this._onMessage(raw));
@@ -76,15 +67,17 @@ class BinanceFeed {
     clearInterval(this._timer); 
     if (this._closed) return; 
     setTimeout(() => { 
-      this._stops++; 
       this._reconnect = Math.min(30000, this._reconnect * 2); 
       this._connect(); 
     }, this._reconnect); 
   }
 
   _onMessage(raw) {
-    let m; 
-    try { m = JSON.parse(raw); } catch { return; }
+    let msg; 
+    try { msg = JSON.parse(raw); } catch { return; }
+    
+    // Combined stream payload format checks data field
+    const m = msg.data || msg;
     if (!m || m.e !== 'kline' || !m.k) return;
 
     const symbol = m.k.s; 
@@ -120,10 +113,7 @@ class TwelveDataFeed {
   }
 
   start() {
-    if (!cfg.TWELVEDATA_ENABLED) { 
-      console.warn('[feed/twelvedata] disabled'); 
-      return this; 
-    }
+    if (!cfg.TWELVEDATA_ENABLED) return this;
     if (!cfg.TWELVEDATA_KEY) { 
       console.warn('[feed/twelvedata] no API key — FX feed idle'); 
       return this; 
@@ -133,7 +123,7 @@ class TwelveDataFeed {
       if (this._closed) return;
       try {
         const syms = cfg.TWELVEDATA_SYMBOLS || ['EUR/USD'];
-        const sym = syms[0]; // poll primary quote for live price
+        const sym = syms[0];
         const url = `https://api.twelvedata.com/price?symbol=${encodeURIComponent(sym)}&apikey=${encodeURIComponent(cfg.TWELVEDATA_KEY)}`;
         const r = await fetch(url);
         if (!r.ok) throw new Error('http ' + r.status);
@@ -158,14 +148,10 @@ class TwelveDataFeed {
   }
 
   isConnected() { return this.connected; }
-
-  stop() { 
-    this._closed = true; 
-    clearInterval(this._timer); 
-  }
+  stop() { this._closed = true; clearInterval(this._timer); }
 }
 
-/* ── OTC simulated feed (24/7, weekend-safe) ── */
+/* ── OTC simulated feed (24/7) ── */
 class OTCSimFeed {
   constructor({ onTick, intervalMs } = {}) {
     this.onTick = onTick || (()=>{}); 
@@ -181,10 +167,7 @@ class OTCSimFeed {
   }
 
   start() {
-    if (!this.enabled) { 
-      console.warn('[feed/otc] disabled'); 
-      return this; 
-    }
+    if (!this.enabled) return this;
     const symbols = cfg.OTC_SYMBOLS || ['EURUSD_OTC', 'GBPUSD_OTC', 'XAUUSD_OTC'];
     for (const s of symbols) { 
       const b = this.base[s] ?? this.base._d; 
@@ -207,11 +190,7 @@ class OTCSimFeed {
   }
 
   isConnected() { return this.enabled; }
-
-  stop() { 
-    this._closed = true; 
-    clearInterval(this._timer); 
-  }
+  stop() { this._closed = true; clearInterval(this._timer); }
 }
 
 module.exports = { BinanceFeed, TwelveDataFeed, OTCSimFeed };
