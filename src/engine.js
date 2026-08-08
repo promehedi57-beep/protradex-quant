@@ -228,4 +228,5 @@ function srLevelHere(sr, hub, symbol) {
   return lvl ? lvl.price : null;
 }
 
-module.exports = { QuantEngine };
+module.exports = { Engine: QuantEngine, QuantEngine };
+
