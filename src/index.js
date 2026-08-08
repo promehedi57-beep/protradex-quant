@@ -1,99 +1,86 @@
 'use strict';
+
+/* ProTradeX Quant Engine — Phase 4 bootstrap */
 const cfg = require('./config');
 const rt = require('./state');
-const { SignalBus } = require('./signals');
 const { QuantEngine } = require('./engine');
+const { SignalBus } = require('./signals');
 const { Metrics } = require('./metrics');
-const { TelegramBot } = require('./telegram');
+const { BinanceFeed } = require('./feeds/binance');
+const { OTCSimFeed } = require('./feeds/otc-sim');
 const { Executor } = require('./executor');
+const { TelegramBot } = require('./telegram');
 const { createDashboard } = require('./dashboard');
 
 async function main() {
+  console.log(`[qx] starting · node ${process.version} · env=${process.env.NODE_ENV || 'dev'}`);
+
+  const signalBus = new SignalBus();
   const metrics = new Metrics();
-  const bus = new SignalBus({ cooldownMs: cfg.SIGNAL_COOLDOWN_MS });
-  const engine = new QuantEngine({ signalBus: bus, metrics });
-  const feedsStatus = { binance: false, oanda: false };
+  const engine = new QuantEngine({ signalBus });
+  const executor = new Executor({ enabled: rt.getExecution() });
 
-  // হিটবিট ট্র্যাকিং + runtime state
-  engine.onCandle = () => { rt.state.lastCandleAt = Date.now(); };
-
-  const telegram = new TelegramBot({ metrics, engine });
-  const executor = new Executor({ onExecuted: () => { /* ack থেকে signals কাউন্ট হবে নিচে */ } });
-  await executor.start();
-
-  // runtime toggle → executor sync (dashboard/Telegram থেকে)
+  /* wire execution + confidence + alerts runtime → executor/telegram */
   rt.onExecutionChange(v => executor.setEnabled(v));
+  rt.onAlertsChange(() => {});                       // telegram subscribes itself
+  rt.onConfidenceChange(() => {});
 
-  bus.onSignal(sig => {
-    metrics.signals++;
-    telegram.notify(sig);
-    const res = executor.execute(sig);
-    if (!res.ok && !res.dryRun) console.warn('[signal] exec fail', sig.pair, res.error || '');
+  /* signal → metrics + telegram + executor */
+  signalBus.on('signal', async (sig) => {
+    metrics.logSignal(sig);
+    engine.signalsTotal++; if (executor.enabled) await executor.execute(sig);
+    if (rt.getAlerts()) { try { await bot.notify(sig); } catch (e) { /* non-fatal */ } }
   });
 
-  // ফিড
-  const feed = cfg.FEED;
-  const feeds = [];
-  if (feed === 'binance' || feed === 'all') {
-    const { BinanceFeed } = require('./feeds/binance');
-    const f = new BinanceFeed({ engine, statusCb: v => { feedsStatus.binance = v; } });
-    await f.start();
-    feeds.push(f);
-  }
-  if (feed === 'oanda' || feed === 'all') {
-    const { OandaFeed } = require('./feeds/oanda');
-    const f = new OandaFeed({ engine });
-    await f.start();
-    feeds.push(f);
-  }
+  /* engine heartbeat (keep raising pair evaluation) */
+  const hb = setInterval(() => engine.pump(), 1);
 
-  // Web Dashboard — process.env.PORT || 10000 (Render কম্প্যাটিবল)
-  if (cfg.DASHBOARD_ENABLED) {
-    const app = createDashboard({ engine, metrics, feedsStatus });
-    app.listen(cfg.PORT, () => console.log('[dashboard] 🟢 http://0.0.0.0:' + cfg.PORT + ' (Dashboard + Webhook + API)'));
-  } else {
-    console.log('[dashboard] DASHBOARD_ENABLED=false — HTTP সার্ভার বন্ধ');
-  }
-
-  // Telegram 2-way bot
-  telegram.start();
-
-  // পিরিয়ডিক স্ট্যাটস
-  setInterval(() => {
-    console.log('[stats]', JSON.stringify(Object.assign(metrics.snapshot(), engine.status())));
-  }, cfg.STATS_INTERVAL_S * 1000).unref?.();
-
-  // হিটবিট অ্যালার্ট — নিঃশব্দ ফেলিউর নেই
-  setInterval(() => {
-    const idle = Date.now() - rt.state.lastCandleAt;
-    if (rt.state.lastCandleAt && idle > cfg.HEARTBEAT_ALERT_S * 1000) {
-      console.error('[heartbeat] ⚠️ কোনো ডেটা আসছে না ' + Math.round(idle / 1000) + 's — ফিড চেক করুন');
-      telegram.notify({ pair: 'SYSTEM', direction: 'ALERT', confidence: 0, timeframe: '-', levels: {}, reason: 'No market data for ' + Math.round(idle / 1000) + 's — feed down?' });
-    }
-  }, cfg.HEARTBEAT_ALERT_S * 1000).unref?.();
-
-  console.log('🚀 ProTradeX Quant Engine v2.1 · FEED=' + feed +
-              ' · EXECUTION=' + cfg.EXECUTION_ENABLED +
-              ' · TELEGRAM=' + cfg.TELEGRAM_ENABLED +
-              ' · DASHBOARD=:' + cfg.PORT);
-
-  // গ্রেসফুল শাটডাউন
-  let down = false;
-  const shutdown = async sig => {
-    if (down) return;
-    down = true;
-    console.log('\n[' + sig + '] শাটডাউন…');
-    try { bus.stop(); } catch (e) { }
-    try { telegram.stop(); } catch (e) { }
-    for (const f of feeds) { try { f.stop(); } catch (e) { } }
-    try { await executor.stop(); } catch (e) { }
-    process.exit(0);
+  /* feeds */
+  engine.agg.bars;   // (touch)
+  const onTick = (t) => engine.onTickFeed(t);
+  const feeds = {
+    binance: cfg.BINANCE_ENABLED ? new BinanceFeed({ onTick, onLivePrice: (s,p)=>engine.handleLivePrice(s,p) }).start() : null,
+    oanda:   cfg.OANDA_ENABLED ? null : null,
+    otc:     cfg.OTC_ENABLED ? new OTCSimFeed({ onTick }).start() : null,
   };
-  process.on('SIGINT', () => shutdown('SIGINT'));
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  const feedsStatus = () => ({
+    binance: feeds.binance ? feeds.binance.isConnected() : false,
+    oanda:   feeds.oanda ? feeds.oanda.connected : false,
+    otc:     !!feeds.otc,
+  });
+
+  /* telegram (strict access) */
+  const bot = new TelegramBot({ metrics, engine, rt });
+  if (cfg.TELEGRAM_ENABLED) { await bot.start(); }
+  rt.onAlertsChange(v => bot.setAlerts(v));          // single source of truth
+  signalBus.publish.name;                            // no-op guard
+
+  /* dashboard / API server on cfg.PORT */
+  if (cfg.DASHBOARD_ENABLED) {
+    const dash = createDashboard({ engine, metrics, feedsStatus, bot, rt });
+    dash.listen(cfg.PORT, () => console.log(`[qx] dashboard http://0.0.0.0:${cfg.PORT}`));
+  } else {
+    console.warn('[qx] dashboard disabled');
+  }
+
+  /* stats interval */
+  setInterval(() => metrics.snapshot(engine.status()), 30_000);
+
+  /* graceful shutdown */
+  let closing = false;
+  const shutdown = async (code) => {
+    if (closing) return; closing = true;
+    console.log('[qx] shutting down…');
+    clearInterval(hb);
+    if (feeds.otc) feeds.otc.stop();
+    if (bot) await bot.stop();
+    executor.stop && executor.stop();
+    process.exit(code);
+  };
+  process.on('SIGINT', () => shutdown(0));
+  process.on('SIGTERM', () => shutdown(0));
+  process.on('unhandledRejection', (r) => console.error('[qx] unhandledRejection', r));
+  process.on('uncaughtException',  (e) => console.error('[qx] uncaughtException', e && e.stack));
 }
 
-process.on('unhandledRejection', reason => console.error('[unhandledRejection]', reason));
-process.on('uncaughtException', err => console.error('[uncaughtException]', err.message, err.stack));
-
-main().catch(e => { console.error('[fatal]', e); process.exit(1); });
+main().catch(e => { console.error('[qx] fatal', e && e.stack); process.exit(1); });
