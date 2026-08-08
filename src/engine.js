@@ -117,7 +117,16 @@ class QuantEngine {
       rule.price = snapshot.price;
 
       if (isNew) {
-        this.lastSignals.set(symbol, { sig: rule.sig, t: Date.now() });
+        /* ── PATCH A: Rich signal record structure ── */
+        const rec = { 
+          sig: rule.sig, 
+          t: Date.now(),
+          confidence: rule.confidence,
+          price: rule.price ?? snapshot.price,
+          rsi: snapshot.rsi, 
+          zscore: snapshot.zscore 
+        };
+        this.lastSignals.set(symbol, rec);
         this.signalsTotal++;
         
         const pairData = this.pairs.get(symbol);
@@ -175,29 +184,32 @@ class QuantEngine {
     };
   }
 
-  /* ── dashboard / API snapshot ── */
-  getPairsSnapshot(limit = 24) {
+  /* ── PATCH B: dashboard / API snapshot (market filter + rich metrics) ── */
+  getPairsSnapshot(limit = 200, market = 'all') {
     const out = [];
     for (const [sym, meta] of this.pairs) {
+      if (market !== 'all') {
+        const isOtc = meta.universe === 'otc';
+        if (market === 'otc' ? !isOtc : isOtc) continue;
+      }
       const s = this.hub.snapshot(sym, cfg.ACTIVE_TIMEFRAME);
       const price = this.livePrices.get(sym) ?? this.lastClose.get(sym);
       if (price == null) continue;
-
+      const last = this.lastSignals.get(sym);
       out.push({
         symbol: sym,
-        price: price,
-        change: 0,                       // 24h % — computed in feed layer
+        price,
+        universe: meta.universe,
         rsi: s.rsi,
         zscore: s.zscore,
         slope: s.sloped ? 'up' : 'down',
-        confidence: s.ready ? s.rsi : 0,
-        direction: s.sloped ? 'CALL' : 'PUT',
-        signal: meta.lastSignal?.sig || 'NEUTRAL',
-        universe: meta.universe,
+        confidence: last ? Math.round(Number(last.confidence) * 10) / 10 : 0,
+        signal: last ? last.sig : 'NEUTRAL',
+        lastSignalAt: last ? last.t : 0,
       });
     }
-    out.sort((a, b) => (b.confidence - a.confidence));
-    return out.slice(0, limit);
+    out.sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
+    return out.slice(0, Math.max(1, Number(limit) || 200));
   }
 
   status() {
@@ -229,4 +241,3 @@ function srLevelHere(sr, hub, symbol) {
 }
 
 module.exports = { Engine: QuantEngine, QuantEngine };
-
