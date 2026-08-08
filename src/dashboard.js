@@ -1,18 +1,10 @@
 'use strict';
-
-/**
- * src/dashboard.js
- * HTTP dashboard + REST API on cfg.PORT (Render exposes one port).
- * API shapes match the QX·01 index.html parser:
- *   GET /api/status → {uptime_seconds, binance, oanda, otc, signals_total, execution, confidence, timeframe}
- *   GET /api/pairs  → array: [{symbol, price, change, volume, rsi, zscore, signal, confidence, direction, universe}]
- */
-
+/* src/dashboard.js — Express app: static UI + REST API on cfg.PORT. */
 const path = require('path');
 const express = require('express');
 
 function basicAuth(req, res, next) {
-  const u = req.app.locals.dashUser, p = req.app.locals.dashPass;
+  const u = req.app.locals.u, p = req.app.locals.p;
   if (!u && !p) return next();
   const b64 = (req.headers.authorization || '').replace(/^Basic\s+/i, '');
   if (!b64) return res.status(401).set('WWW-Authenticate', 'Basic realm="qx"').end();
@@ -21,66 +13,98 @@ function basicAuth(req, res, next) {
   next();
 }
 
-function createDashboard({ engine, metrics, feedsStatus = () => ({}), rt }) {
+function createDashboard({ engine, ai, feedsStatus, rt, telegram }) {
   const app = express();
-  app.locals.dashUser = process.env.DASHBOARD_USER || '';
-  app.locals.dashPass = process.env.DASHBOARD_PASS || '';
-
-  app.use(express.json({ limit: '1mb' }));
+  app.locals.u = process.env.DASHBOARD_USER || ''; app.locals.p = process.env.DASHBOARD_PASS || '';
+  app.use(express.json({ limit: '20mb' }));                 // allow chart screenshots (base64)
   app.use(basicAuth);
   app.use(express.static(path.join(__dirname, 'public')));
 
+  /* ── Status ── */
   app.get('/api/status', (req, res) => {
-    const s = engine.status();
-    const fs = feedsStatus();
-    res.json({
-      uptime_seconds: s.uptime,
-      binance: fs.binance === true,
-      oanda: fs.oanda === true,
-      otc: fs.otc === true,
-      signals_total: s.signals_total,
-      execution: rt ? rt.getExecution() : false,
-      confidence: rt ? rt.getConfidence() : 65,
-      timeframe: s.timeframe,
-      tfs: s.tfs || [],
-      connections: { binance: fs.binance, oanda: fs.oanda, otc: fs.otc, watch: s.pairs },
-    });
+    const s = engine.status(); const f = feedsStatus();
+    res.json({ uptime_seconds:s.uptime, binance:f.binance, oanda:f.oanda, otc:f.otc,
+      signals_total:s.signals_total, execution:rt?.getExecution()??false, confidence:rt?.getConfidence()??65,
+      timeframe:cfgACTIVE(), tfs:cfgTFs(), gemini: ai ? ai.status() : null,
+      connections:{ binance:f.binance, oanda:f.oanda, otc:f.otc, watch:s.pairs } });
   });
 
+  /* ── Pairs (market filter) ── */
   app.get('/api/pairs', (req, res) => {
-    const limit = Math.min(Number(req.query.limit) || 24, 200);
-    res.json(engine.getPairsSnapshot(limit));
+    const limit = Math.min(Number(req.query.limit) || 200, 300);
+    const market = String(req.query.market || 'all');         // all | real | otc
+    res.json(engine.getPairsSnapshot(limit, market));
   });
 
-  app.post('/api/execution', (req, res) => {
-    const v = req.body && req.body.enabled;
-    if (typeof v === 'boolean' && rt) rt.setExecution(v);
-    res.json({ execution: rt ? rt.getExecution() : false });
+  /* ── Candle tracker (live forming + history) for a symbol ── */
+  app.get('/api/candles/:symbol', (req, res) => {
+    const sym = String(req.params.symbol).toUpperCase();
+    const tf = Number(req.query.tf) || rt?.getActiveTf?.() || 15;
+    const hist = engine.tf.getCandles(sym, tf);
+    const cur = engine.tf.current(sym, tf);
+    const now = Date.now(); const tfMs = tf * 60000;
+    const openAt = cur ? cur.openAt : now - (now % tfMs);
+    const remaining = Math.max(0, tfMs - (now - openAt));
+    const price = engine.livePrices.get(sym) ?? engine.lastClose.get(sym);
+    const dir = price >= (cur ? cur.o : price) ? 'bullish' : 'bearish';
+    res.json({ symbol:sym, tf, history:hist, current:cur ? {...cur, price} : null,
+      candle:{ index: Math.floor(openAt/tfMs), openAt, closeAt: openAt+tfMs, remaining, direction:dir, price } });
   });
 
-  app.post('/api/confidence', (req, res) => {
-    const v = Number(req.body && req.body.value);
-    if (Number.isFinite(v) && rt) rt.setConfidence(v);
-    res.json({ confidence: rt ? rt.getConfidence() : 65 });
+  /* ── Strategy / indicator overrides (mutable) ── */
+  app.post('/api/strategy', (req, res) => {
+    const b = req.body || {}; const R = require('./config').RULES;
+    if (b.rsiLow != null) R.RSI_LOW = clampNum(b.rsiLow,1,99);
+    if (b.rsiHigh != null) R.RSI_HIGH = clampNum(b.rsiHigh,1,99);
+    if (b.zscoreMin != null) R.ZSCORE_MIN = clampNum(b.zscoreMin,0,10);
+    if (b.adxMin != null) R.ADX_MIN = clampNum(b.adxMin,5,60);
+    if (b.srBreakout != null) R.SR_BREAKOUT_PCT = clampNum(b.srBreakout,0.01,5);
+    res.json({ ok:true, RULES:R });
   });
 
-  app.post('/api/confidence/adjust', (req, res) => {
-    const d = Number(req.body && req.body.delta);
-    if (Number.isFinite(d) && rt) rt.setConfidence(rt.getConfidence() + d);
-    res.json({ confidence: rt ? rt.getConfidence() : 65 });
+  /* ── Gemini key (dynamic from UI) ── */
+  app.post('/api/gemini/key', (req, res) => {
+    const k = req.body?.key; if (!k || typeof k !== 'string') return res.status(400).json({ ok:false, error:'key required' });
+    ai?.setApiKey(k); res.json({ ok:true, key: ai ? ai.getApiKey() : '' });
+  });
+  app.post('/api/gemini/clear', (req, res) => { ai?.setApiKey(''); res.json({ ok:true }); });
+
+  /* ── AI: data scan (isolated) ── */
+  app.post('/api/ai/scan', async (req, res) => {
+    const sym = String(req.body?.symbol || '').toUpperCase();
+    const tf = Number(req.body?.tf) || 15;
+    const candles = engine.tf.getCandles(sym, tf).slice(-(require('./config').GEMINI_DATA_CANDLES || 50));
+    if (!candles.length) return res.json({ ok:false, error:'No candle data yet for ' + sym });
+    const out = await ai.analyzeData(candles, { tf });   // never rejects
+    res.json({ ok:out.ok, symbol:sym, tf, ...(out.ok ? { analysis: safeJson(out.text) } : { error: out.error }) });
   });
 
-  app.post('/webhook', (req, res) => {
-    const secret = process.env.WEBHOOK_SECRET;
-    const inAuth = req.headers['x-webhook-secret'] || req.query.secret;
-    if (secret && inAuth !== secret) return res.status(403).json({ ok: false });
-    try { engine.signalBus && engine.signalBus.publish('signal', req.body); } catch (e) {}
-    res.json({ ok: true });
+  /* ── AI: vision chart upload (isolated) ── */
+  app.post('/api/analyze-chart', async (req, res) => {
+    const img = req.body?.image; const tf = Number(req.body?.tf) || 15;
+    if (!img) return res.status(400).json({ ok:false, error:'image (base64 data URL) required' });
+    const out = await ai.analyzeImage(img, { tf });      // never rejects
+    res.json(out.ok ? { ok:true, analysis: safeJson(out.text) } : { ok:false, error:out.error });
   });
 
-  app.get('/health', (req, res) => res.json({ ok: true, t: new Date().toISOString() }));
+  /* ── Telegram test alert ── */
+  app.post('/api/telegram/test', async (req, res) => {
+    if (!telegram || !telegram.hasToken()) return res.json({ ok:false, error:'Telegram bot not configured' });
+    try { const r = await telegram.sendTest(); res.json({ ok:true, sent:r }); }
+    catch (e) { res.json({ ok:false, error:e.message }); }
+  });
+
+  app.post('/api/execution', (req, res) => { const v = req.body?.enabled; if (typeof v === 'boolean' && rt) rt.setExecution(v); res.json({ execution: rt?.getExecution() ?? false }); });
+  app.post('/api/confidence', (req, res) => { const v = Number(req.body?.value); if (Number.isFinite(v) && rt) rt.setConfidence(v); res.json({ confidence: rt?.getConfidence() ?? 65 }); });
+  app.post('/webhook', (req, res) => { engine.signalBus?.publish('signal', req.body); res.json({ ok:true }); });
+  app.get('/health', (req, res) => res.json({ ok:true, t:new Date().toISOString() }));
 
   return app;
 }
+
+function cfgACTIVE() { return require('./config').ACTIVE_TIMEFRAME; }
+function cfgTFs() { return require('./config').TIMEFRAMES; }
+const clampNum = (v,a,b) => Math.min(b, Math.max(a, Number(v) || a));
+function safeJson(text) { try { return JSON.parse(text); } catch { return { raw: text }; } }
 
 module.exports = { createDashboard };
