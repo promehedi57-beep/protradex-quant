@@ -12,6 +12,15 @@ class SignalBus {
     if (this._pruneTimer.unref) this._pruneTimer.unref();
   }
 
+  // index.js-এর signalBus.on(...) কলের জন্য নতুন যোগ করা হলো
+  on(event, fn) {
+    if (typeof event === 'function') {
+      this.handlers.push(event);
+    } else if (typeof fn === 'function') {
+      this.handlers.push(fn);
+    }
+  }
+
   onSignal(fn) { 
     if (typeof fn === 'function') this.handlers.push(fn); 
   }
@@ -48,7 +57,9 @@ class SignalBus {
 
   // QuantEngine compatibility helper
   publish(event, sig) {
-    return this.emit(sig);
+    // event যদি একটি অবজেক্ট হয় (যেমন sig) তবে সেটা পাস করবে
+    const actualSig = sig || (typeof event === 'object' ? event : null);
+    return this.emit(actualSig);
   }
 
   stop() { 
