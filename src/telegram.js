@@ -1,242 +1,217 @@
 'use strict';
+
+/**
+ * src/telegram.js
+ * 2-way Telegram bot via long polling (fetch-based, Render-safe).
+ * STRICT ACCESS: only cfg.TELEGRAM_ALLOWED_CHAT_IDS may issue commands.
+ * Empty whitelist ⇒ every command refused (secure-by-default).
+ * /alerts toggles notifications only — dashboard/signals keep running regardless.
+ * /broadcast is admin-only (cfg.TELEGRAM_ADMIN_IDS).
+ */
+
 const cfg = require('./config');
 const rt = require('./state');
 
-const esc = s => String(s ?? '').replace(/[<>&'"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;',"'":'&#39;','"':'&quot;'}[c]));
-const num = v => (v === null || v === undefined || !Number.isFinite(Number(v))) ? '—' : Number(v).toPrecision(6);
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-const human = s => { s = Math.max(0, Math.floor(s)); return Math.floor(s/86400)+'d '+Math.floor(s%86400/3600)+'h '+Math.floor(s%3600/60)+'m '+(s%60)+'s'; };
+const BASE = 'https://api.telegram.org/bot';
 
 class TelegramBot {
-  constructor({ metrics, engine }) {
-    this.token = String(cfg.TELEGRAM_BOT_TOKEN || '');
-    this.chatId = String(cfg.TELEGRAM_CHAT_ID || '');
-    this.enabled = cfg.TELEGRAM_ENABLED;
+  constructor({ metrics, engine, rt: runtime }) {
     this.metrics = metrics;
     this.engine = engine;
-    this.allowed = new Set(String(cfg.TELEGRAM_ALLOWED_CHAT_IDS || '').split(',').map(s => s.trim()).filter(Boolean));
-    this.offset = 0;
-    this.stopped = false;
-    this.queue = [];
-    this.flushing = false;
-    this.maxQueue = 300;
-    if (this.enabled && (!this.token || !this.chatId)) {
-      console.warn('[telegram] enabled কিন্তু token/chatId নেই — bot বন্ধ করা হলো');
-      this.enabled = false;
-    }
+    this.rt = runtime;
+    this.token = cfg.TELEGRAM_BOT_TOKEN;
+    this.allowed = cfg.TELEGRAM_ALLOWED_CHAT_IDS;
+    this.admins = cfg.TELEGRAM_ADMIN_IDS;
+    this.targets = cfg.TELEGRAM_BROADCAST_TARGETS.length ? cfg.TELEGRAM_BROADCAST_TARGETS : this.allowed;
+    this.alerts = rt.getAlerts();
+    this._offset = 0;
+    this._stop = false;
+    this._pollTimer = null;
+    this._me = null;
+    this._abort = null;
   }
 
-  /* ---------- HTTP core ---------- */
-  async _call(method, payload) {
-    const res = await fetch('https://api.telegram.org/bot' + this.token + '/' + method, {
+  api(method, payload = {}) {
+    return fetch(`${BASE}${this.token}/${method}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    if (!res.ok) {
-      const t = await res.text();
-      const e = new Error(method + ' HTTP ' + res.status + ' ' + t.slice(0, 160));
-      if (res.status === 409) e.conflict = true;
-      throw e;
-    }
-    return res.json();
+      body: JSON.stringify(payload),
+    }).then(async (r) => ({ ok: r.ok, code: r.status, json: await r.json().catch(() => ({})) }));
   }
 
-  async _getUpdates() {
-    const ctrl = new AbortController();
-    const to = setTimeout(() => ctrl.abort(), (cfg.TELEGRAM_POLL_TIMEOUT + 5) * 1000);
+  hasToken() { return !!this.token; }
+
+  async start() {
+    if (!this.hasToken()) { console.warn('[tg] no TELEGRAM_BOT_TOKEN — bot disabled'); return; }
     try {
-      const url = 'https://api.telegram.org/bot' + this.token + '/getUpdates?timeout=' + cfg.TELEGRAM_POLL_TIMEOUT + '&offset=' + this.offset;
-      const res = await fetch(url, { signal: ctrl.signal });
-      if (res.status === 409) { const e = new Error('conflict'); e.conflict = true; throw e; }
-      if (!res.ok) throw new Error('getUpdates HTTP ' + res.status);
-      const d = await res.json();
-      if (d.ok && Array.isArray(d.result)) {
-        if (d.result.length) this.offset = d.result[d.result.length - 1].update_id + 1;
-        return d.result;
-      }
-      return [];
-    } finally { clearTimeout(to); }
+      const me = await this.api('getMe');
+      if (!me.ok) throw new Error('getMe failed ' + me.code);
+      this._me = me.json.result?.username;
+      console.log(`[tg] bot @${this._me} · allowed=${this.allowed.length} · alerts=${this.alerts}`);
+      this._poll();
+    } catch (e) { console.error('[tg] start failed:', e.message); }
   }
 
-  /* ---------- সিগনাল অ্যালার্ট (বিদ্যমান notify — সেভ থাকে) ---------- */
-  async _flush() {
-    if (this.flushing || !this.queue.length) return;
-    this.flushing = true;
-    while (this.queue.length) {
-      const item = this.queue[0];
-      try {
-        await this._call('sendMessage', item);
-        this.queue.shift();
-        if (this.queue.length) await sleep(80);
-      } catch (e) {
-        console.error('[telegram] send fail:', e.message);
-        this.queue.shift();
+  async _request(doAbort = true) {
+    const ctrl = new AbortController();
+    this._abort = ctrl;
+    const to = new AbortController();
+    const tId = setTimeout(() => { ctrl.abort(); }, (cfg.TELEGRAM_POLL_TIMEOUT || 30) * 1000 + 3000);
+    try {
+      const res = await fetch(`${BASE}${this.token}/getUpdates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ timeout: cfg.TELEGRAM_POLL_TIMEOUT || 30, offset: this._offset }),
+        signal: ctrl.signal,
+      });
+      clearTimeout(tId);
+      if (!res.ok) return { ok: false, code: res.status };
+      return { ok: true, json: await res.json() };
+    } catch (e) {
+      clearTimeout(tId);
+      return { ok: false, error: e, aborted: e?.name === 'AbortError' };
+    }
+  }
+
+  async _poll() {
+    while (!this._stop) {
+      const res = await this._request();
+      if (!res.ok) {
+        if (res.aborted) { continue; }                    // timeout → loop forever (normal)
+        console.error('[tg] poll err', res.code || (res.error && res.error.message));
+        await new Promise(r => setTimeout(r, 5000));      // backoff, avoid hammering Telegram
+        continue;
+      }
+      const updates = res.json?.result || [];
+      for (const u of updates) {
+        this._offset = u.update_id + 1;                    // ack
+        try { await this._handleUpdate(u); } catch (e) { console.error('[tg] update', e.message); }
       }
     }
-    this.flushing = false;
   }
 
-  send(text, extra = {}) {
-    if (!this.enabled) return;
-    this.queue.push(Object.assign({ chat_id: this.chatId, text, parse_mode: 'HTML', disable_web_page_preview: true }, extra));
-    if (this.queue.length > this.maxQueue) this.queue.splice(0, this.queue.length - this.maxQueue);
-    this._flush();
+  _handleUpdate(u) {
+    if (u.callback_query)    return this._onCallback(u.callback_query);
+    if (u.message?.text)     return this._onMessage(u.message);
   }
 
-  notify(sig) {
-    if (!this.enabled) return;
-    const lv = sig.levels || {};
-    const dirTxt = sig.direction === 'CALL' ? '🟢 CALL (UP)' : sig.direction === 'PUT' ? '🔴 PUT (DOWN)' : '⚠️ ' + esc(sig.direction);
-    const lines = [
-      '📊 <b>' + esc(sig.pair) + '</b> — ' + dirTxt,
-      '🎯 Confidence: <b>' + sig.confidence + '%</b> · TF: <b>' + esc(sig.timeframe || cfg.TIMEFRAME) + '</b>',
-      '📈 Entry: <b>' + num(lv.entry) + '</b>',
-      '🛑 SL: ' + num(lv.stopLoss) + ' · 🎯 TP: ' + num(lv.takeProfit),
-      'S/R: ' + num(lv.support) + ' / ' + num(lv.resistance),
-      '🧠 ' + esc(sig.reason || '')
+  _authorized(chatId) {
+    if (!this.allowed.length) return false;               // secure-by-default
+    return this.allowed.includes(String(chatId));
+  }
+
+  _send(chatId, text, keyboard) {
+    const payload = { chat_id: chatId, text, parse_mode: 'Markdown' };
+    if (keyboard) payload.reply_markup = { inline_keyboard: keyboard };
+    return this.api('sendMessage', payload).then(r => { if (!r.ok) console.error('[tg] send', r.code, JSON.stringify(r.json).slice(0, 200)); });
+  }
+
+  _answer(qid, text) { return this.api('answerCallbackQuery', { callback_query_id: qid, text }); }
+
+  _keyboard(chatId) {
+    const isAdmin = this.admins.includes(String(chatId));
+    const exec = this.rt.getExecution() ? 'LIVE' : 'PAPER';
+    return [
+      [{ text: '📊 Status', callback_data: 'status' }, { text: '🧾 Active Pairs', callback_data: 'pairs' }],
+      [{ text: `⚡ Execution: ${exec} (toggle)`, callback_data: 'exec' }],
+      [{ text: '✓ Alerts: ' + (this.alerts ? 'ON' : 'OFF'), callback_data: 'alerts' }],
+      [{ text: 'Conf −5', callback_data: 'conf:-5' }, { text: 'Conf +5', callback_data: 'conf:+5' }],
+      ...(isAdmin ? [[{ text: '📢 Broadcast…', callback_data: 'broadcast' }]] : []),
     ];
-    this.send(lines.join('\n'));
-  }
-
-  /* ---------- Inline keyboard builders ---------- */
-  _mainKeyboard() {
-    return {
-      inline_keyboard: [
-        [{ text: '📊 Status', callback_data: 'status' }, { text: '📈 Active Pairs', callback_data: 'pairs' }],
-        [{ text: '⚡ Execution: ' + (rt.getExecution() ? '🟢 ON' : '🟡 OFF'), callback_data: 'toggle_exec' }],
-        [{ text: '🎯 Conf −5%', callback_data: 'conf_down' }, { text: '🎯 Conf +5%', callback_data: 'conf_up' }]
-      ]
-    };
   }
 
   _statusText() {
-    const m = this.metrics.snapshot();
-    const lastAgo = rt.state.lastCandleAt ? Math.round((Date.now() - rt.state.lastCandleAt) / 1000) : null;
+    const s = this.engine.status();
     return [
-      '📊 <b>ProTradeX Quant — Status</b>',
-      '🕐 Uptime: <b>' + human(m.uptimeS || 0) + '</b>',
-      '👥 Scanning: <b>' + (this.engine.states.size || 0) + '</b> pairs',
-      '📈 Total signals: <b>' + (m.signals || 0) + '</b>',
-      '⏱ p95 latency: <b>' + m.latencyP95Ms + 'ms</b>',
-      '📡 Last candle: ' + (lastAgo === null ? '—' : '<b>' + lastAgo + 's</b> আগে'),
-      '🎯 Min confidence: <b>' + rt.getConfidence() + '%</b>',
-      '⚡ Execution: <b>' + (rt.getExecution() ? '🟢 REAL' : '🟡 DRY-RUN') + '</b>'
+      '*ProTradeX · Live*',
+      '',
+      `⏱ Uptime: ${Math.floor(s.uptime / 60)}m ${s.uptime % 60}s`,
+      `🟢 Pairs: ${s.pairs}`,
+      `🟢 Signals: ${s.signals_total ?? 0}`,
+      `⚙ Mode: ${this.rt.getExecution() ? 'LIVE (REAL)' : 'PAPER (DRY-RUN)'}`,
+      `🎚 Confidence floor: ${this.rt.getConfidence()}%`,
+      `🔔 Alerts: ${this.alerts ? 'ON' : 'OFF'}`,
+      `🕒 TF active: ${s.timeframe}m · tfs: ${(s.tfs||[]).join('/')}`,
     ].join('\n');
   }
 
   _pairsText() {
-    const list = this.engine.getPairsSnapshot(10);
-    if (!list.length) return '📈 এখনো কোনো পেয়ার warm-up শেষ করেনি…';
-    const lines = ['📈 <b>Active Pairs (near signal)</b>'];
-    list.forEach((p, i) => {
-      const dir = p.direction === 'CALL' ? '🟢 CALL' : p.direction === 'PUT' ? '🔴 PUT' : '—';
-      lines.push(
-        (i + 1) + '. <b>' + esc(p.symbol) + '</b> — ' + num(p.price) + '  ·  Conf <b>' + p.confidence + '%</b> ' + dir +
-        '\n&nbsp;&nbsp;&nbsp;RSI ' + (p.rsi == null ? '—' : p.rsi.toFixed(1)) +
-        ' · ADX ' + (p.adx == null ? '—' : p.adx.toFixed(1)) +
-        ' · Z ' + (p.zscore == null ? '—' : p.zscore.toFixed(2))
-      );
+    const rows = this.engine.getPairsSnapshot(12)
+      .map((p, i) => `${i + 1}. ${p.symbol} · ${p.price} · ${p.zscore}σ · ${p.confidence}% · ${p.signal}`)
+      .join('\n');
+    return rows || '_no pairs yet_';
+  }
+
+  async _onMessage(m) {
+    const from = m.chat?.id?.toString();
+    if (typeof from === 'undefined') return;
+    if (!this._authorized(from)) { this._send(from, '⛔ Unauthorized — this bot is restricted.'); return; }
+    const t = (m.text || '').trim();
+
+    if (t === '/start') return this._send(from, 'Welcome. Tap a button or use a command.', this._keyboard(from));
+    if (t === '/status') return this._send(from, this._statusText());
+    if (t === '/pairs')  return this._send(from, this._pairsText());
+    if (t === '/exec')   { const n = !this.rt.getExecution(); this.rt.setExecution(n); return this._send(from, `Execution → ${n ? 'LIVE' : 'PAPER'}`); }
+    if (t.startsWith('/conf')) {
+      const v = parseInt(t.replace(/[^0-9-]/g, ''), 10);
+      if (Number.isFinite(v)) this.rt.setConfidence(this.rt.getConfidence() + v);
+      return this._send(from, `Confidence floor → ${this.rt.getConfidence()}%`);
+    }
+    if (t === '/alerts') {
+      if (!this.admins.includes(from)) return this._send(from, '⛔ Admins only.');
+      const n = !this.alerts; this.alerts = n; this.rt.setAlerts(n);
+      return this._send(from, `Alerts → ${n ? 'ON' : 'OFF'} · dashboard signals unaffected.`);
+    }
+    if (t.startsWith('/broadcast ')) {
+      if (!this.admins.includes(from)) return this._send(from, '⛔ Admins only.');
+      const msg = t.slice('/broadcast '.length).trim();
+      if (!msg) return this._send(from, 'Usage: /broadcast <text>');
+      for (const c of this.targets) await this._send(c, msg).catch(()=>{});
+      return this._send(from, `Broadcast sent to ${this.targets.length} target(s).`);
+    }
+    return this._send(from, 'Unknown command.', this._keyboard(from));
+  }
+
+  async _onCallback(cq) {
+    const from = cq.message?.chat?.id?.toString();
+    const data = cq.data || '';
+    if (!from || !this._authorized(from)) { await this._answer(cq.id, '⛔ unauthorized'); return; }
+    await this._answer(cq.id, '');
+
+    if (data === 'status') return this._edit(cq, this._statusText());
+    if (data === 'pairs')  return this._edit(cq, this._pairsText());
+    if (data === 'exec')   { const n = !this.rt.getExecution(); this.rt.setExecution(n); return this._edit(cq, this._statusText()); }
+    if (data === 'alerts') {
+      if (!this.admins.includes(from)) return this._send(from, '⛔ Admins only.');
+      this.alerts = !this.alerts; this.rt.setAlerts(this.alerts);
+      return this._edit(cq, this._statusText());
+    }
+    if (data.startsWith('conf:')) {
+      const d = parseInt(data.slice(5), 10);
+      if (Number.isFinite(d)) this.rt.setConfidence(this.rt.getConfidence() + d);
+      return this._edit(cq, this._statusText());
+    }
+    if (data === 'broadcast') return this._send(from, 'Use /broadcast <text> (admins only).');
+  }
+
+  _edit(cq, text) {
+    return this.api('editMessageText', {
+      chat_id: cq.message.chat.id, message_id: cq.message.message_id,
+      text, parse_mode: 'Markdown', reply_markup: { inline_keyboard: this._keyboard(cq.message.chat.id) },
     });
-    return lines.join('\n');
   }
 
-  /* ---------- মেসেজ/কলব্যাক হ্যান্ডলিং ---------- */
-  _authorized(chatId) { return this.allowed.size === 0 || this.allowed.has(String(chatId)); }
-
-  async _handle(update) {
-    if (update.callback_query) return this._handleCallback(update.callback_query);
-    if (update.message) return this._handleMessage(update.message);
+  /* signal notification — runs ONLY when alerts enabled */
+  async notify(sig) {
+    if (!this.alerts || !this.targets.length) return;
+    const dir = sig.sig === 'CALL' ? '📈' : sig.sig === 'PUT' ? '📉' : '➡';
+    const msg = `${dir} *${sig.symbol}*\nSignal: ${sig.sig} · ${sig.confidence}%\nZ ${sig.zscore} · RSI ${sig.rsi}\n@ ${sig.price}`;
+    for (const c of this.targets) await this._send(c, msg).catch(()=>{});
   }
 
-  async _handleMessage(msg) {
-    const chat = msg.chat ? msg.chat.id : null;
-    if (chat === null || !this._authorized(chat)) {
-      try { await this._call('sendMessage', { chat_id: chat, text: '⛔ এই chat-এ bot কন্ট্রোল অনুমোদিত নয়।' }); } catch (e) { }
-      return;
-    }
-    const text = String(msg.text || '').trim();
-    const kb = { reply_markup: this._mainKeyboard() };
-    if (text === '/start') {
-      await this._call('sendMessage', Object.assign({
-        chat_id: chat,
-        text: '👋 <b>ProTradeX Quant Control Panel</b>\n\nনিচের বাটন বা কমান্ড ব্যবহার করুন:\n/status · /pairs · /conf · /exec on|off',
-        parse_mode: 'HTML'
-      }, kb));
-    } else if (text === '/status') {
-      await this._call('sendMessage', Object.assign({ chat_id: chat, text: this._statusText(), parse_mode: 'HTML' }, kb));
-    } else if (text === '/pairs') {
-      await this._call('sendMessage', Object.assign({ chat_id: chat, text: this._pairsText(), parse_mode: 'HTML' }, kb));
-    } else if (text === '/conf') {
-      await this._call('sendMessage', Object.assign({ chat_id: chat, text: '🎯 বর্তমান min confidence: <b>' + rt.getConfidence() + '%</b>\nবদলাতে: <b>/conf 75</b>', parse_mode: 'HTML' }, kb));
-    } else if (/^\/conf\s+\d{1,3}$/.test(text)) {
-      const v = rt.setConfidence(parseInt(text.split(/\s+/)[1], 10));
-      await this._call('sendMessage', Object.assign({ chat_id: chat, text: '🎯 Min confidence → <b>' + v + '%</b> ✅', parse_mode: 'HTML' }, kb));
-    } else if (text === '/exec' || text === '/exec on' || text === '/exec off') {
-      const v = text === '/exec off' ? false : !rt.getExecution();
-      rt.setExecution(v);
-      await this._call('sendMessage', Object.assign({ chat_id: chat, text: '⚡ Execution → <b>' + (v ? '🟢 REAL' : '🟡 DRY-RUN') + '</b> ✅', parse_mode: 'HTML' }, kb));
-    } else if (text === '/exec on') { /* উপরের কভার করেছে */ }
-    else {
-      await this._call('sendMessage', Object.assign({ chat_id: chat, text: '❓ চিনতে পারিনি — /start দেখুন', parse_mode: 'HTML' }, kb));
-    }
-  }
+  setAlerts(v) { this.alerts = !!v; }
 
-  async _handleCallback(cb) {
-    const chat = cb.message && cb.message.chat ? cb.message.chat.id : null;
-    const mid = cb.message ? cb.message.message_id : null;
-    const data = String(cb.data || '');
-    try { await this._call('answerCallbackQuery', { callback_query_id: cb.id, text: '⏳…' }); } catch (e) { }
-    if (chat === null || !this._authorized(chat)) return;
-    let text = null;
-    if (data === 'status') text = this._statusText();
-    else if (data === 'pairs') text = this._pairsText();
-    else if (data === 'toggle_exec') rt.setExecution(!rt.getExecution());
-    else if (data === 'conf_up') rt.setConfidence(rt.getConfidence() + 5);
-    else if (data === 'conf_down') rt.setConfidence(rt.getConfidence() - 5);
-    if (text !== null) {
-      try {
-        await this._call('editMessageText', {
-          chat_id: chat, message_id: mid,
-          text, parse_mode: 'HTML',
-          reply_markup: this._mainKeyboard()
-        });
-      } catch (e) { console.error('[telegram] edit fail:', e.message); }
-    } else {
-      // টগল/কনফিডেন্স — বাটনের লেবেল আপডেট
-      try {
-        await this._call('editMessageReplyMarkup', {
-          chat_id: chat, message_id: mid,
-          reply_markup: this._mainKeyboard()
-        });
-      } catch (e) { }
-      try { await this._call('answerCallbackQuery', { callback_query_id: cb.id, text: '✅ ' + (data === 'toggle_exec' ? 'Execution: ' + (rt.getExecution() ? 'REAL' : 'DRY-RUN') : 'Confidence: ' + rt.getConfidence() + '%') }); } catch (e) { }
-    }
-  }
-
-  /* ---------- লাইফসাইকেল ---------- */
-  start() {
-    if (!this.enabled) return;
-    console.log('[telegram] 🟢 long-polling শুরু — inline control panel চালু');
-    this._poll();
-  }
-
-  async _poll() {
-    while (!this.stopped) {
-      try {
-        const updates = await this._getUpdates();
-        for (const u of updates) {
-          try { await this._handle(u); } catch (e) { console.error('[telegram] handle error:', e.message); }
-        }
-      } catch (e) {
-        if (e && e.conflict) { console.error('[telegram] 409 conflict — আরেকটি instance পোলিং করছে? ৫সে পরে আবার'); await sleep(5000); }
-        else if (e && e.name === 'AbortError') { /* টাইমআউট — স্বাভাবিক, লুপ চালিয়ে যান */ }
-        else { console.error('[telegram] poll error:', e.message); await sleep(3000); }
-      }
-    }
-  }
-
-  stop() { this.stopped = true; }
+  async stop() { this._stop = true; if (this._abort) this._abort.abort(); if (this._pollTimer) clearTimeout(this._pollTimer); }
 }
 
 module.exports = { TelegramBot };
